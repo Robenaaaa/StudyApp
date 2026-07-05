@@ -6,13 +6,14 @@ const STORAGE_KEY = 'ghostStudyApp_v1';
 const WEEKDAY_LABELS = ['일','월','화','수','목','금','토']; // JS getDay() index 0-6
 const KOR_WEEKDAY_ORDER = [1,2,3,4,5,6,0]; // 월~일 표시 순서 (getDay 기준)
 
+const MASCOT_IMG = 'assets/mascot.png';
 const SHOP_ITEMS = [
-  { id:'g1', type:'ghost', emoji:'👻', name:'기본 유령', price:0 },
-  { id:'g2', type:'ghost', emoji:'🎃', name:'호박 유령', price:30 },
-  { id:'g3', type:'ghost', emoji:'🥶', name:'냉동 유령', price:30 },
-  { id:'g4', type:'ghost', emoji:'😈', name:'악동 유령', price:50 },
-  { id:'g5', type:'ghost', emoji:'🧙', name:'마법사 유령', price:80 },
-  { id:'g6', type:'ghost', emoji:'🤴', name:'집사 유령', price:80 },
+  { id:'g1', type:'ghost', img:MASCOT_IMG, filter:'none', name:'기본 구름이', price:0 },
+  { id:'g2', type:'ghost', img:MASCOT_IMG, filter:'hue-rotate(300deg) saturate(1.6)', name:'핑크 구름이', price:30 },
+  { id:'g3', type:'ghost', img:MASCOT_IMG, filter:'hue-rotate(130deg) saturate(1.4)', name:'민트 구름이', price:30 },
+  { id:'g4', type:'ghost', img:MASCOT_IMG, filter:'hue-rotate(200deg) saturate(1.6)', accessory:'🎀', name:'리본 블루 구름이', price:50 },
+  { id:'g5', type:'ghost', img:MASCOT_IMG, filter:'sepia(0.6) hue-rotate(-20deg) saturate(2)', accessory:'🕶️', name:'선글라스 골드 구름이', price:80 },
+  { id:'g6', type:'ghost', img:MASCOT_IMG, filter:'invert(0.85) hue-rotate(180deg)', accessory:'👑', name:'왕관 블랙 구름이', price:80 },
   { id:'d1', type:'deco', emoji:'🪴', name:'화분', price:20 },
   { id:'d2', type:'deco', emoji:'🕯️', name:'촛불', price:20 },
   { id:'d3', type:'deco', emoji:'📚', name:'책더미', price:25 },
@@ -28,7 +29,7 @@ const AFFIRMATIONS = [
   '오늘의 나는 어제보다 조금 더 단단해요.',
   '천천히 가도 괜찮아, 멈추지만 않으면 돼.',
   '비 오는 날엔 집중이 더 잘 돼요.',
-  '작은 유령도 매일 조금씩 자라나요.',
+  '작은 발걸음도 매일 조금씩 쌓여가요.',
   '지금 이 순간의 노력이 쌓이고 있어요.'
 ];
 
@@ -254,7 +255,7 @@ function tickTimer(){
       } else {
         timer.phase = 'work';
         timer.remaining = timer.pomWorkSec;
-        showToast('휴식 끝! 다시 집중해볼까요? 👻');
+        showToast('휴식 끝! 다시 집중해볼까요? 🐕');
       }
     }
   } else {
@@ -274,12 +275,13 @@ function stopBasicAndLog(){
 function updateTimerDOM(){
   const disp = document.getElementById('timerDisplay');
   if(!disp) return; // 홈 탭이 아니면 스킵
+  const numEl = disp.querySelector('.timer-num');
+  const sub = document.getElementById('timerSub');
   if(timer.mode === 'pomodoro'){
-    disp.textContent = timerFormat(timer.remaining);
-    const sub = document.getElementById('timerSub');
-    if(sub) sub.textContent = timer.phase === 'work' ? '집중 시간' : '휴식 시간';
+    if(numEl) numEl.textContent = timerFormat(timer.remaining);
+    if(sub) sub.textContent = timer.phase === 'work' ? '집중' : '휴식';
   } else {
-    disp.textContent = timerFormat(timer.basicElapsed);
+    if(numEl) numEl.textContent = timerFormat(timer.basicElapsed);
   }
 }
 
@@ -440,55 +442,63 @@ function updateCoinBadge(){
   document.getElementById('coinAmount').textContent = data.coins;
 }
 
+const HOME_SCENE_IMG = 'assets/home-scene.png';
+
+function updateClockOverlay(){
+  const el = document.getElementById('sceneClock');
+  if(!el) return;
+  const now = new Date();
+  let h = now.getHours();
+  const ampm = h >= 12 ? '오후' : '오전';
+  h = h % 12; if(h === 0) h = 12;
+  const m = String(now.getMinutes()).padStart(2,'0');
+  el.innerHTML = `<span class="clock-ampm">${ampm}</span><span class="clock-time">${h}:${m}</span>`;
+}
+
 function renderHome(){
   const today = todayKey();
-  const ghost = SHOP_ITEMS.find(i => i.id === data.equipped.ghost);
-  const decoEmojis = data.equipped.decos.map(id => SHOP_ITEMS.find(i=>i.id===id)?.emoji).filter(Boolean);
-  const affirmation = data.customAffirmation || AFFIRMATIONS[new Date().getDate() % AFFIRMATIONS.length];
-
-  const ddayHtml = data.ddayList.map(d => {
-    const diff = Math.ceil((keyToDate(d.date) - keyToDate(today)) / (1000*60*60*24));
-    const label = diff === 0 ? 'D-DAY' : (diff > 0 ? `D-${diff}` : `D+${-diff}`);
-    return `<span class="dday-chip">${escapeHtml(d.label)} ${label}</span>`;
-  }).join('');
 
   document.getElementById('mainView').innerHTML = `
-    <div class="window-card">
-      <div class="room-scene">
-        <span class="ghost-mascot">${ghost ? ghost.emoji : '👻'}</span>
-        ${decoEmojis.map(e => `<span class="room-deco">${e}</span>`).join('')}
+    <div class="scene-card">
+      <img src="${HOME_SCENE_IMG}" class="scene-img" alt="공부방 풍경">
+      <div class="scene-clock" id="sceneClock"></div>
+      <div class="scene-timer-overlay" id="timerDisplay">
+        <div class="timer-num">${timer.mode==='pomodoro' ? timerFormat(timer.remaining) : timerFormat(timer.basicElapsed)}</div>
+        <div class="timer-cap" id="timerSub">${timer.mode==='pomodoro' ? (timer.phase==='work' ? '집중' : '휴식') : '경과'}</div>
       </div>
-      <div class="affirmation">${escapeHtml(affirmation)}</div>
-      ${ddayHtml ? `<div class="dday-row">${ddayHtml}</div>` : ''}
     </div>
 
-    <div class="card">
-      <div class="timer-modes">
-        <button class="mode-btn ${timer.mode==='pomodoro'?'active':''}" id="modePomodoro">뽀모도로</button>
-        <button class="mode-btn ${timer.mode==='basic'?'active':''}" id="modeBasic">기본 타이머</button>
+    <div class="card home-controls">
+      <div class="home-controls-col">
+        <div class="timer-modes">
+          <button class="mode-btn ${timer.mode==='pomodoro'?'active':''}" id="modePomodoro">뽀모도로</button>
+          <button class="mode-btn ${timer.mode==='basic'?'active':''}" id="modeBasic">기본 타이머</button>
+        </div>
+        <div class="timer-controls">
+          ${timer.running
+            ? `<button class="btn btn-ghost btn-block" id="btnPause">일시정지</button>`
+            : `<button class="btn btn-primary btn-block" id="btnStart">시작</button>`}
+          ${timer.mode==='basic'
+            ? `<button class="btn btn-danger" id="btnStopLog">정지·기록</button>`
+            : `<button class="btn btn-ghost" id="btnReset">리셋</button>`}
+        </div>
+        <div class="muted" style="margin-top:10px;">오늘 뽀모도로 ${data.pomodoroCount}회 · 오늘 공부 ${data.studyLog[today]||0}분</div>
       </div>
-      <div class="timer-display" id="timerDisplay">${timer.mode==='pomodoro' ? timerFormat(timer.remaining) : timerFormat(timer.basicElapsed)}</div>
-      <div class="timer-sub" id="timerSub">${timer.mode==='pomodoro' ? (timer.phase==='work' ? '집중 시간' : '휴식 시간') : '경과 시간'}</div>
-      <div class="timer-controls">
-        ${timer.running
-          ? `<button class="btn btn-ghost btn-block" id="btnPause">일시정지</button>`
-          : `<button class="btn btn-primary btn-block" id="btnStart">시작</button>`}
-        ${timer.mode==='basic'
-          ? `<button class="btn btn-danger" id="btnStopLog">정지·기록</button>`
-          : `<button class="btn btn-ghost" id="btnReset">리셋</button>`}
-      </div>
-      <div class="muted" style="margin-top:10px; text-align:center;">오늘 뽀모도로 ${data.pomodoroCount}회 · 오늘 공부 ${data.studyLog[today]||0}분</div>
-
-      <div class="noise-row">
-        <button class="btn btn-ghost btn-sm" id="btnNoiseToggle">${noise.playing ? '⏸ 소리끄기' : '▶ 백색소음'}</button>
-        <select class="noise-select" id="noiseType">
-          <option value="rain" ${noise.type==='rain'?'selected':''}>🌧️ 빗소리</option>
-          <option value="white" ${noise.type==='white'?'selected':''}>📻 화이트노이즈</option>
-        </select>
-        <input type="range" id="noiseVolume" min="0" max="1" step="0.05" value="${noise.volume}">
+      <div class="home-controls-col noise-col">
+        <div class="section-title" style="margin-bottom:8px;">🎧 백색소음</div>
+        <div class="noise-row" style="margin-top:0; padding-top:0; border-top:none;">
+          <button class="btn btn-ghost btn-sm" id="btnNoiseToggle">${noise.playing ? '⏸ 소리끄기' : '▶ 재생'}</button>
+          <select class="noise-select" id="noiseType">
+            <option value="rain" ${noise.type==='rain'?'selected':''}>🌧️ 빗소리</option>
+            <option value="white" ${noise.type==='white'?'selected':''}>📻 화이트노이즈</option>
+          </select>
+          <input type="range" id="noiseVolume" min="0" max="1" step="0.05" value="${noise.volume}">
+        </div>
       </div>
     </div>
   `;
+
+  updateClockOverlay();
 
   document.getElementById('modePomodoro').onclick = () => switchTimerMode('pomodoro');
   document.getElementById('modeBasic').onclick = () => switchTimerMode('basic');
@@ -779,9 +789,12 @@ function renderShop(){
     const equipped = item.type === 'ghost'
       ? data.equipped.ghost === item.id
       : data.equipped.decos.includes(item.id);
+    const preview = item.type === 'ghost'
+      ? mascotHtml(item, 56, false)
+      : `<span class="shop-item-emoji">${item.emoji}</span>`;
     return `
       <div class="shop-item ${owned?'owned':''}">
-        <span class="shop-item-emoji">${item.emoji}</span>
+        <div style="display:flex; justify-content:center;">${preview}</div>
         <div class="shop-item-name">${item.name}</div>
         <div class="shop-item-price">${owned ? (equipped?'착용중':'보유중') : `🪙 ${item.price}`}</div>
         ${owned
@@ -792,7 +805,7 @@ function renderShop(){
 
   document.getElementById('mainView').innerHTML = `
     <div class="card">
-      <div class="section-title">👻 캐릭터</div>
+      <div class="section-title">🐕 캐릭터</div>
       <div class="shop-grid">${ghosts.map(itemCard).join('')}</div>
     </div>
     <div class="card">
@@ -863,6 +876,16 @@ function escapeHtml(str){
   return div.innerHTML;
 }
 
+function mascotHtml(item, sizePx, bob){
+  const filter = item?.filter || 'none';
+  const accessory = item?.accessory || '';
+  return `
+    <div class="mascot-wrap ${bob?'mascot-bob':''}" style="width:${sizePx}px;">
+      <img src="${MASCOT_IMG}" class="mascot-img" style="filter:${filter}" alt="캐릭터">
+      ${accessory ? `<span class="mascot-accessory">${accessory}</span>` : ''}
+    </div>`;
+}
+
 /* ---------------- 탭 전환 ---------------- */
 const renderers = { home: renderHome, todo: renderTodo, timetable: renderTimetable, shop: renderShop, stats: renderStats };
 
@@ -900,6 +923,26 @@ function init(){
 
   setInterval(checkScheduleAlarms, 15000);
   checkScheduleAlarms();
+
+  setInterval(updateClockOverlay, 15000);
+
+  const fsBtn = document.getElementById('fullscreenBtn');
+  if(fsBtn){
+    fsBtn.onclick = () => {
+      const el = document.documentElement;
+      const req = el.requestFullscreen || el.webkitRequestFullscreen;
+      const doLock = () => {
+        if(screen.orientation && screen.orientation.lock){
+          screen.orientation.lock('landscape').catch(()=>{});
+        }
+      };
+      if(req){
+        req.call(el).then(doLock).catch(doLock);
+      } else {
+        doLock();
+      }
+    };
+  }
 
   // 자정 넘어가면 코인 정산 다시 체크 (앱을 계속 켜둔 경우 대비)
   setInterval(() => {
