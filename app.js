@@ -9,19 +9,19 @@ const KOR_WEEKDAY_ORDER = [1,2,3,4,5,6,0]; // 월~일 표시 순서 (getDay 기�
 const MASCOT_IMG = 'assets/mascot.png';
 const SHOP_ITEMS = [
   { id:'g1', type:'ghost', img:MASCOT_IMG, filter:'none', name:'기본 구름이', price:0 },
-  { id:'g2', type:'ghost', img:MASCOT_IMG, filter:'hue-rotate(300deg) saturate(1.6)', name:'핑크 구름이', price:30 },
-  { id:'g3', type:'ghost', img:MASCOT_IMG, filter:'hue-rotate(130deg) saturate(1.4)', name:'민트 구름이', price:30 },
-  { id:'g4', type:'ghost', img:MASCOT_IMG, filter:'hue-rotate(200deg) saturate(1.6)', accessory:'🎀', name:'리본 블루 구름이', price:50 },
-  { id:'g5', type:'ghost', img:MASCOT_IMG, filter:'sepia(0.6) hue-rotate(-20deg) saturate(2)', accessory:'🕶️', name:'선글라스 골드 구름이', price:80 },
-  { id:'g6', type:'ghost', img:MASCOT_IMG, filter:'invert(0.85) hue-rotate(180deg)', accessory:'👑', name:'왕관 블랙 구름이', price:80 },
-  { id:'d1', type:'deco', emoji:'🪴', name:'화분', price:20 },
-  { id:'d2', type:'deco', emoji:'🕯️', name:'촛불', price:20 },
-  { id:'d3', type:'deco', emoji:'📚', name:'책더미', price:25 },
-  { id:'d4', type:'deco', emoji:'🖼️', name:'액자', price:25 },
-  { id:'d5', type:'deco', emoji:'🛋️', name:'소파', price:40 },
-  { id:'d6', type:'deco', emoji:'🎐', name:'풍경', price:35 },
-  { id:'d7', type:'deco', emoji:'🕰️', name:'괘종시계', price:45 },
-  { id:'d8', type:'deco', emoji:'🧸', name:'곰인형', price:30 },
+  { id:'g2', type:'ghost', img:MASCOT_IMG, filter:'hue-rotate(300deg) saturate(1.6)', name:'핑크 구름이', price:0 },
+  { id:'g3', type:'ghost', img:MASCOT_IMG, filter:'hue-rotate(130deg) saturate(1.4)', name:'민트 구름이', price:0 },
+  { id:'g4', type:'ghost', img:MASCOT_IMG, filter:'hue-rotate(200deg) saturate(1.6)', accessory:'🎀', name:'리본 블루 구름이', price:0 },
+  { id:'g5', type:'ghost', img:MASCOT_IMG, filter:'sepia(0.6) hue-rotate(-20deg) saturate(2)', accessory:'🕶️', name:'선글라스 골드 구름이', price:0 },
+  { id:'g6', type:'ghost', img:MASCOT_IMG, filter:'invert(0.85) hue-rotate(180deg)', accessory:'👑', name:'왕관 블랙 구름이', price:0 },
+  { id:'d1', type:'deco', emoji:'🪴', name:'화분', price:0 },
+  { id:'d2', type:'deco', emoji:'🕯️', name:'촛불', price:0 },
+  { id:'d3', type:'deco', emoji:'📚', name:'책더미', price:0 },
+  { id:'d4', type:'deco', emoji:'🖼️', name:'액자', price:0 },
+  { id:'d5', type:'deco', emoji:'🛋️', name:'소파', price:0 },
+  { id:'d6', type:'deco', emoji:'🎐', name:'풍경', price:0 },
+  { id:'d7', type:'deco', emoji:'🕰️', name:'괘종시계', price:0 },
+  { id:'d8', type:'deco', emoji:'🧸', name:'곰인형', price:0 },
 ];
 const MAX_DECO_SLOTS = 3;
 
