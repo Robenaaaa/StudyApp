@@ -1,0 +1,10 @@
+{
+  "name": "유령집사의 공부방",
+  "short_name": "공부방",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#12162a",
+  "theme_color": "#12162a",
+  "orientation": "portrait",
+  "icons": []
+}

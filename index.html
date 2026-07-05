@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#171b30">
+<title>유령집사의 공부방</title>
+<link rel="manifest" href="manifest.json">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Gaegu:wght@400;700&family=Gowun+Dodum&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="rain-layer" id="rainLayer" aria-hidden="true"></div>
+
+<div class="app">
+
+  <!-- 상단 바 -->
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-ghost">👻</span>
+      <span class="brand-text">유령집사의 공부방</span>
+    </div>
+    <div class="coin-badge" id="coinBadge">
+      <span class="coin-icon">🪙</span>
+      <span id="coinAmount">0</span>
+    </div>
+  </header>
+
+  <!-- 메인 콘텐츠 -->
+  <main id="mainView" class="main-view"></main>
+
+  <!-- 하단 탭 네비게이션 -->
+  <nav class="tabbar">
+    <button class="tab-btn active" data-tab="home"><span class="tab-icon">🏠</span><span>홈</span></button>
+    <button class="tab-btn" data-tab="todo"><span class="tab-icon">📝</span><span>할일</span></button>
+    <button class="tab-btn" data-tab="timetable"><span class="tab-icon">🗓️</span><span>시간표</span></button>
+    <button class="tab-btn" data-tab="shop"><span class="tab-icon">🛍️</span><span>상점</span></button>
+    <button class="tab-btn" data-tab="stats"><span class="tab-icon">📈</span><span>통계</span></button>
+  </nav>
+
+</div>
+
+<!-- 알림/토스트 -->
+<div class="toast" id="toast"></div>
+
+<script src="app.js"></script>
+</body>
+</html>
