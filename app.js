@@ -6,14 +6,7 @@ const STORAGE_KEY = 'ghostStudyApp_v1';
 const WEEKDAY_LABELS = ['일','월','화','수','목','금','토']; // JS getDay() index 0-6
 const KOR_WEEKDAY_ORDER = [1,2,3,4,5,6,0]; // 월~일 표시 순서 (getDay 기준)
 
-const MASCOT_IMG = 'assets/mascot.png';
 const SHOP_ITEMS = [
-  { id:'g1', type:'ghost', img:MASCOT_IMG, filter:'none', name:'기본 구름이', price:0 },
-  { id:'g2', type:'ghost', img:MASCOT_IMG, filter:'hue-rotate(300deg) saturate(1.6)', name:'핑크 구름이', price:0 },
-  { id:'g3', type:'ghost', img:MASCOT_IMG, filter:'hue-rotate(130deg) saturate(1.4)', name:'민트 구름이', price:0 },
-  { id:'g4', type:'ghost', img:MASCOT_IMG, filter:'hue-rotate(200deg) saturate(1.6)', accessory:'🎀', name:'리본 블루 구름이', price:0 },
-  { id:'g5', type:'ghost', img:MASCOT_IMG, filter:'sepia(0.6) hue-rotate(-20deg) saturate(2)', accessory:'🕶️', name:'선글라스 골드 구름이', price:0 },
-  { id:'g6', type:'ghost', img:MASCOT_IMG, filter:'invert(0.85) hue-rotate(180deg)', accessory:'👑', name:'왕관 블랙 구름이', price:0 },
   { id:'d1', type:'deco', emoji:'🪴', name:'화분', price:0 },
   { id:'d2', type:'deco', emoji:'🕯️', name:'촛불', price:0 },
   { id:'d3', type:'deco', emoji:'📚', name:'책더미', price:0 },
@@ -39,8 +32,8 @@ function defaultData(){
     coins: 0,
     todos: [],          // {id, text, type:'once'|'repeat', date, repeatDays:[], createdDate, completions:{dateKey:{done:true, coinCredited:false}}}
     timetable: [],       // {id, day, time, subject, alarm, lastFiredDate}
-    owned: ['g1'],
-    equipped: { ghost:'g1', decos: [] },
+    owned: [],
+    equipped: { decos: [] },
     studyLog: {},         // dateKey -> minutes
     pomodoroCount: 0,
     customAffirmation: '',
@@ -170,20 +163,16 @@ function purchaseItem(itemId){
 function equipItem(itemId){
   const item = SHOP_ITEMS.find(i => i.id === itemId);
   if(!item || !data.owned.includes(itemId)) return;
-  if(item.type === 'ghost'){
-    data.equipped.ghost = itemId;
+  const decos = data.equipped.decos;
+  const idx = decos.indexOf(itemId);
+  if(idx >= 0){
+    decos.splice(idx,1);
   } else {
-    const decos = data.equipped.decos;
-    const idx = decos.indexOf(itemId);
-    if(idx >= 0){
-      decos.splice(idx,1);
-    } else {
-      if(decos.length >= MAX_DECO_SLOTS){
-        showToast(`방 꾸미기는 최대 ${MAX_DECO_SLOTS}개까지 놓을 수 있어요`);
-        return;
-      }
-      decos.push(itemId);
+    if(decos.length >= MAX_DECO_SLOTS){
+      showToast(`방 꾸미기는 최대 ${MAX_DECO_SLOTS}개까지 놓을 수 있어요`);
+      return;
     }
+    decos.push(itemId);
   }
   saveData();
   renderShop();
@@ -442,7 +431,25 @@ function updateCoinBadge(){
   document.getElementById('coinAmount').textContent = data.coins;
 }
 
-const HOME_SCENE_IMG = 'assets/home-scene.png';
+// 공부방 배경은 레이어별 개별 이미지로 구성됩니다. 항목 추가/교체 시 이 폴더 안의
+// 파일 경로만 바꿔 끼우면 됩니다 (레이어 순서는 배열 순서 = z-order, 뒤→앞).
+const FRAME_IMG = 'assets/frame/6_ 액자.png';
+
+const ROOM_LAYERS = [
+  { key:'background', img:'assets/background/1_ 바탕배경.png', alt:'방 배경' },
+  { key:'window',     img:'assets/windows/7_ 창문.png',        alt:'창문' },
+  { key:'frame',       img:FRAME_IMG,                          alt:'액자' },
+  { key:'curtain',     img:null,                                alt:'커튼' }, // 상태에 따라 CURTAIN_IMG에서 선택
+  { key:'cushion',     img:'assets/cushion/4_ 방석.png',        alt:'방석' },
+  { key:'toy',         img:'assets/toy/5_ 장난감.png',          alt:'장난감' },
+  { key:'dog',         img:'assets/dog/3_ 강아지.png',          alt:'강아지' },
+];
+
+const CURTAIN_IMG = {
+  closed: 'assets/curtain/2_ 커텐(닫힘).png',
+  open:   'assets/curtain/2. 커텐(열림).png',
+};
+let curtainOpen = false;
 
 function updateClockOverlay(){
   const el = document.getElementById('sceneClock');
@@ -460,7 +467,13 @@ function renderHome(){
 
   document.getElementById('mainView').innerHTML = `
     <div class="scene-card">
-      <img src="${HOME_SCENE_IMG}" class="scene-img" alt="공부방 풍경">
+      ${ROOM_LAYERS.map(l => {
+        const src = l.key === 'curtain' ? CURTAIN_IMG[curtainOpen ? 'open' : 'closed'] : l.img;
+        const id = l.key === 'curtain' ? ' id="sceneCurtain"' : '';
+        return `<img src="${src}" class="scene-layer layer-${l.key}"${id} alt="${l.alt}">`;
+      }).join('')}
+      <div class="scene-hotspot hotspot-bookshelf" id="hotspotBookshelf" title="통계 보기"></div>
+      <div class="scene-hotspot hotspot-frame" id="hotspotFrame" title="액자 보기"></div>
       <div class="scene-clock" id="sceneClock"></div>
       <div class="scene-timer-overlay" id="timerDisplay">
         <div class="timer-num">${timer.mode==='pomodoro' ? timerFormat(timer.remaining) : timerFormat(timer.basicElapsed)}</div>
@@ -499,6 +512,10 @@ function renderHome(){
   `;
 
   updateClockOverlay();
+
+  document.getElementById('sceneCurtain').onclick = () => { curtainOpen = !curtainOpen; renderHome(); };
+  document.getElementById('hotspotBookshelf').onclick = openStatsModal;
+  document.getElementById('hotspotFrame').onclick = openFrameModal;
 
   document.getElementById('modePomodoro').onclick = () => switchTimerMode('pomodoro');
   document.getElementById('modeBasic').onclick = () => switchTimerMode('basic');
@@ -781,20 +798,14 @@ function renderTimetable(){
 }
 
 function renderShop(){
-  const ghosts = SHOP_ITEMS.filter(i => i.type === 'ghost');
   const decos = SHOP_ITEMS.filter(i => i.type === 'deco');
 
   function itemCard(item){
     const owned = data.owned.includes(item.id);
-    const equipped = item.type === 'ghost'
-      ? data.equipped.ghost === item.id
-      : data.equipped.decos.includes(item.id);
-    const preview = item.type === 'ghost'
-      ? mascotHtml(item, 56, false)
-      : `<span class="shop-item-emoji">${item.emoji}</span>`;
+    const equipped = data.equipped.decos.includes(item.id);
     return `
       <div class="shop-item ${owned?'owned':''}">
-        <div style="display:flex; justify-content:center;">${preview}</div>
+        <div style="display:flex; justify-content:center;"><span class="shop-item-emoji">${item.emoji}</span></div>
         <div class="shop-item-name">${item.name}</div>
         <div class="shop-item-price">${owned ? (equipped?'착용중':'보유중') : `🪙 ${item.price}`}</div>
         ${owned
@@ -805,10 +816,6 @@ function renderShop(){
 
   document.getElementById('mainView').innerHTML = `
     <div class="card">
-      <div class="section-title">🐕 캐릭터</div>
-      <div class="shop-grid">${ghosts.map(itemCard).join('')}</div>
-    </div>
-    <div class="card">
       <div class="section-title">🛋️ 방 꾸미기 <span class="muted" style="font-weight:400;">(최대 ${MAX_DECO_SLOTS}개 착용)</span></div>
       <div class="shop-grid">${decos.map(itemCard).join('')}</div>
     </div>
@@ -817,7 +824,7 @@ function renderShop(){
   document.querySelectorAll('[data-equip]').forEach(el => el.onclick = () => equipItem(el.dataset.equip));
 }
 
-function renderStats(){
+function statsContentHtml(){
   const today = todayKey();
   let weekMinutes = 0;
   const bars = [];
@@ -840,7 +847,7 @@ function renderStats(){
     else break;
   }
 
-  document.getElementById('mainView').innerHTML = `
+  return `
     <div class="stat-grid">
       <div class="stat-box"><div class="stat-num">${data.studyLog[today]||0}<span style="font-size:13px;">분</span></div><div class="stat-label">오늘 공부시간</div></div>
       <div class="stat-box"><div class="stat-num">${weekMinutes}<span style="font-size:13px;">분</span></div><div class="stat-label">이번주 총 공부시간</div></div>
@@ -870,21 +877,47 @@ function renderStats(){
   `;
 }
 
+function renderStats(){
+  document.getElementById('mainView').innerHTML = statsContentHtml();
+}
+
+function openStatsModal(){
+  document.getElementById('statsModalBody').innerHTML = statsContentHtml();
+  document.getElementById('statsModal').classList.add('show');
+}
+function closeStatsModal(){
+  document.getElementById('statsModal').classList.remove('show');
+}
+
+function sizeFrameModalImg(){
+  const img = document.getElementById('frameModalImg');
+  if(!img.naturalWidth) return;
+  const maxW = window.innerWidth * 0.5;
+  const maxH = window.innerHeight * 0.5;
+  const ratio = img.naturalWidth / img.naturalHeight;
+  let w = maxW, h = maxW / ratio;
+  if(h > maxH){ h = maxH; w = maxH * ratio; }
+  img.style.width = w + 'px';
+  img.style.height = h + 'px';
+}
+
+function openFrameModal(){
+  const img = document.getElementById('frameModalImg');
+  img.onload = sizeFrameModalImg;
+  img.src = FRAME_IMG;
+  if(img.complete && img.naturalWidth) sizeFrameModalImg();
+  document.getElementById('frameModal').classList.add('show');
+}
+function closeFrameModal(){
+  document.getElementById('frameModal').classList.remove('show');
+}
+
 function escapeHtml(str){
   const div = document.createElement('div');
   div.textContent = str;
   return div.innerHTML;
 }
 
-function mascotHtml(item, sizePx, bob){
-  const filter = item?.filter || 'none';
-  const accessory = item?.accessory || '';
-  return `
-    <div class="mascot-wrap ${bob?'mascot-bob':''}" style="width:${sizePx}px;">
-      <img src="${MASCOT_IMG}" class="mascot-img" style="filter:${filter}" alt="캐릭터">
-      ${accessory ? `<span class="mascot-accessory">${accessory}</span>` : ''}
-    </div>`;
-}
 
 /* ---------------- 탭 전환 ---------------- */
 const renderers = { home: renderHome, todo: renderTodo, timetable: renderTimetable, shop: renderShop, stats: renderStats };
@@ -925,6 +958,16 @@ function init(){
   checkScheduleAlarms();
 
   setInterval(updateClockOverlay, 15000);
+
+  document.getElementById('statsModalClose').onclick = closeStatsModal;
+  document.getElementById('statsModal').addEventListener('click', (e) => {
+    if(e.target.id === 'statsModal') closeStatsModal();
+  });
+
+  document.getElementById('frameModalClose').onclick = closeFrameModal;
+  document.getElementById('frameModal').addEventListener('click', (e) => {
+    if(e.target.id === 'frameModal') closeFrameModal();
+  });
 
   const fsBtn = document.getElementById('fullscreenBtn');
   if(fsBtn){

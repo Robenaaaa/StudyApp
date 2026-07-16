@@ -51,6 +51,25 @@
 <!-- 알림/토스트 -->
 <div class="toast" id="toast"></div>
 
+<!-- 책장 클릭 시 뜨는 통계 팝업 -->
+<div class="modal-overlay" id="statsModal">
+  <div class="modal-panel">
+    <div class="modal-header">
+      <div class="section-title" style="margin:0;">📈 통계</div>
+      <button class="modal-close" id="statsModalClose" aria-label="닫기">✕</button>
+    </div>
+    <div class="modal-body" id="statsModalBody"></div>
+  </div>
+</div>
+
+<!-- 액자 클릭 시 뜨는 사진 팝업 -->
+<div class="modal-overlay" id="frameModal">
+  <div class="frame-modal-panel">
+    <button class="modal-close frame-modal-close" id="frameModalClose" aria-label="닫기">✕</button>
+    <img id="frameModalImg" src="" class="frame-modal-img" alt="액자 사진">
+  </div>
+</div>
+
 <script src="app.js"></script>
 </body>
 </html>
