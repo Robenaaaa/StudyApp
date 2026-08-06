@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">유령집사의 공부방</string>
+    <string name="title_activity_main">유령집사의 공부방</string>
+    <string name="package_name">com.robena.ghoststudyroom</string>
+    <string name="custom_url_scheme">com.robena.ghoststudyroom</string>
+</resources>

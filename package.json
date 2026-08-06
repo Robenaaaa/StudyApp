@@ -1,0 +1,32 @@
+{
+  "name": "studyapp",
+  "version": "1.0.0",
+  "description": "원본 앱 컨셉 + 요청하신 기능(완성률/형광펜 효과, 코인 리워드, 시간표+알람, 반복 할일)을 담은 개인용 웹 앱입니다. `index.html`, `style.css`, `app.js` 3개 파일로만 되어 있어요.",
+  "main": "app.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "sync-www": "node scripts/sync-www.js",
+    "cap:sync": "npm run sync-www && cap sync"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Robenaaaa/StudyApp.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/Robenaaaa/StudyApp/issues"
+  },
+  "homepage": "https://github.com/Robenaaaa/StudyApp#readme",
+  "dependencies": {
+    "@capacitor/android": "8.5.0",
+    "@capacitor/cli": "8.5.0",
+    "@capacitor/core": "8.5.0"
+  },
+  "devDependencies": {
+    "@capacitor/assets": "3.0.5",
+    "playwright": "1.62.1"
+  }
+}

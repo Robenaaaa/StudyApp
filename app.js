@@ -104,13 +104,13 @@ function getCompletionRate(dateKey){
 
 let justCompletedId = null;
 
-function toggleTodoComplete(id, dateKey){
+function setTodoCompletion(id, dateKey){
   const today = todayKey();
   dateKey = dateKey || today;
-  if(dateKey !== today){ showToast('할일은 당일에만 체크할 수 있어요'); return; }
+  if(dateKey !== today){ showToast('할일은 당일에만 체크할 수 있어요'); return false; }
   const todo = data.todos.find(t => t.id === id);
-  if(!todo) return;
-  if(!isTodoDueOn(todo, dateKey)) return; // 그 날짜 할일이 아니면 무시
+  if(!todo) return false;
+  if(!isTodoDueOn(todo, dateKey)) return false; // 그 날짜 할일이 아니면 무시
 
   if(todo.completions[dateKey]?.done){
     delete todo.completions[dateKey];
@@ -119,7 +119,13 @@ function toggleTodoComplete(id, dateKey){
     justCompletedId = id;
   }
   saveData();
-  renderTodo();
+  return true;
+}
+function toggleTodoComplete(id, dateKey){
+  if(setTodoCompletion(id, dateKey)) renderTodo();
+}
+function toggleTodoCompleteInModal(id){
+  if(setTodoCompletion(id, todayKey())) renderBookshelfModalBody();
 }
 
 function deleteTodo(id){
@@ -181,7 +187,7 @@ function equipItem(itemId){
 
 /* ---------------- 타이머 ---------------- */
 const timer = {
-  mode: 'pomodoro',        // 'pomodoro' | 'basic'
+  mode: 'basic',           // 'pomodoro' | 'basic' — 모드 전환 버튼이 숨겨져 있어 항상 기본(누적) 타이머로 사용
   phase: 'work',           // pomodoro: 'work' | 'break'
   running: false,
   pomWorkSec: 25*60,
@@ -191,10 +197,11 @@ const timer = {
   intervalId: null
 };
 
-function timerFormat(sec){
-  const m = Math.floor(sec/60);
+function timerFormatHMS(sec){
+  const h = Math.floor(sec/3600);
+  const m = Math.floor((sec%3600)/60);
   const s = sec % 60;
-  return `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+  return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
 }
 
 function startTimer(){
@@ -214,7 +221,7 @@ function resetTimer(){
   } else {
     timer.basicElapsed = 0;
   }
-  updateTimerDOM();
+  updateSceneStopwatch();
 }
 function switchTimerMode(mode){
   pauseTimer();
@@ -250,7 +257,7 @@ function tickTimer(){
   } else {
     timer.basicElapsed += 1;
   }
-  updateTimerDOM();
+  updateSceneStopwatch();
 }
 function stopBasicAndLog(){
   const min = Math.floor(timer.basicElapsed/60);
@@ -258,79 +265,38 @@ function stopBasicAndLog(){
   if(min > 0) logStudyMinutes(min);
   timer.basicElapsed = 0;
   showToast(min > 0 ? `공부 시간 ${min}분이 기록되었어요` : '기록할 시간이 없어요');
-  updateTimerDOM();
+  updateSceneStopwatch();
   renderStats();
 }
-function updateTimerDOM(){
-  const disp = document.getElementById('timerDisplay');
-  if(!disp) return; // 홈 탭이 아니면 스킵
-  const numEl = disp.querySelector('.timer-num');
-  const sub = document.getElementById('timerSub');
-  if(timer.mode === 'pomodoro'){
-    if(numEl) numEl.textContent = timerFormat(timer.remaining);
-    if(sub) sub.textContent = timer.phase === 'work' ? '집중' : '휴식';
-  } else {
-    if(numEl) numEl.textContent = timerFormat(timer.basicElapsed);
-  }
-}
 
-/* ---------------- 백색소음 / 빗소리 ---------------- */
+/* ---------------- 배경음 ---------------- */
+// 소리를 추가하려면 이 목록에 항목만 더하면 됩니다 (파일은 assets/audio/에 추가).
+// 드롭다운도 이 목록에서 자동으로 만들어집니다.
+const NOISE_SOURCES = {
+  rain: { label: '🌧️ 빗소리', src: 'assets/audio/rain.mp3' },
+};
+
 const noise = {
-  ctx: null,
-  source: null,
-  gain: null,
+  audioEl: null,
   playing: false,
-  type: data.noiseSettings.type,
+  type: NOISE_SOURCES[data.noiseSettings.type] ? data.noiseSettings.type : 'rain',
   volume: data.noiseSettings.volume
 };
 
-function makeNoiseBuffer(ctx){
-  const bufferSize = 2 * ctx.sampleRate;
-  const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
-  const output = buffer.getChannelData(0);
-  for(let i=0;i<bufferSize;i++){ output[i] = Math.random()*2 - 1; }
-  return buffer;
-}
 function stopNoiseNodes(){
-  if(noise.source){
-    try{ noise.source.stop(); }catch(e){}
-    noise.source.disconnect();
-    noise.source = null;
+  if(noise.audioEl){
+    noise.audioEl.pause();
+    noise.audioEl.src = '';
+    noise.audioEl = null;
   }
 }
 function startNoise(){
-  if(!noise.ctx){
-    const Ctx = window.AudioContext || window.webkitAudioContext;
-    if(!Ctx){ showToast('이 브라우저는 오디오를 지원하지 않아요'); return; }
-    noise.ctx = new Ctx();
-  }
-  if(noise.ctx.state === 'suspended') noise.ctx.resume();
   stopNoiseNodes();
-
-  const ctx = noise.ctx;
-  const source = ctx.createBufferSource();
-  source.buffer = makeNoiseBuffer(ctx);
-  source.loop = true;
-
-  const filter = ctx.createBiquadFilter();
-  if(noise.type === 'rain'){
-    filter.type = 'lowpass';
-    filter.frequency.value = 900;
-    filter.Q.value = 0.6;
-  } else {
-    filter.type = 'allpass';
-  }
-
-  const gain = ctx.createGain();
-  gain.gain.value = noise.volume;
-
-  source.connect(filter);
-  filter.connect(gain);
-  gain.connect(ctx.destination);
-  source.start();
-
-  noise.source = source;
-  noise.gain = gain;
+  const audio = new Audio(NOISE_SOURCES[noise.type].src);
+  audio.loop = true;
+  audio.volume = noise.volume;
+  audio.play().catch(() => showToast('오디오 재생에 실패했어요'));
+  noise.audioEl = audio;
   noise.playing = true;
 }
 function toggleNoise(){
@@ -351,7 +317,7 @@ function setNoiseType(type){
 function setNoiseVolume(v){
   noise.volume = v;
   data.noiseSettings.volume = v;
-  if(noise.gain) noise.gain.gain.value = v;
+  if(noise.audioEl) noise.audioEl.volume = v;
   saveData();
 }
 
@@ -433,52 +399,354 @@ function updateCoinBadge(){
 
 // 공부방 배경은 레이어별 개별 이미지로 구성됩니다. 항목 추가/교체 시 이 폴더 안의
 // 파일 경로만 바꿔 끼우면 됩니다 (레이어 순서는 배열 순서 = z-order, 뒤→앞).
-const FRAME_IMG = 'assets/frame/6_ 액자.png';
+// 위치 좌표는 assets/0_ 소품자리 설정 시필요_.png 배치를 기준으로 산출했습니다.
+// 액자 사진은 여러 장을 순환할 수 있도록 배열로 관리합니다. frame 폴더에 그림을 추가하면
+// 여기 목록에 경로만 더해주면 액자 클릭 → 사진변경 버튼으로 순환됩니다.
+const FRAME_PHOTOS = [
+  'assets/frame/액자.png',
+];
+let framePhotoIndex = 0;
+function currentFramePhoto(){ return FRAME_PHOTOS[framePhotoIndex]; }
 
 const ROOM_LAYERS = [
-  { key:'background', img:'assets/background/1_ 바탕배경.png', alt:'방 배경' },
-  { key:'window',     img:'assets/windows/7_ 창문.png',        alt:'창문' },
-  { key:'frame',       img:FRAME_IMG,                          alt:'액자' },
-  { key:'curtain',     img:null,                                alt:'커튼' }, // 상태에 따라 CURTAIN_IMG에서 선택
-  { key:'cushion',     img:'assets/cushion/4_ 방석.png',        alt:'방석' },
-  { key:'toy',         img:'assets/toy/5_ 장난감.png',          alt:'장난감' },
-  { key:'dog',         img:'assets/dog/3_ 강아지.png',          alt:'강아지' },
+  { key:'background', img:'assets/background/배경.png', alt:'방 배경' },
+  { key:'window',     img:'assets/windows/창문1.png',    alt:'창문' },
+  { key:'plant',       img:'assets/plant/화분1.png',      alt:'화분' },
+  { key:'frame',       img:null,                          alt:'액자' }, // currentFramePhoto()에서 선택
+  { key:'clock',       img:'assets/clock/시계.png',       alt:'시계' },
+  { key:'book',        img:'assets/book/책장.png',        alt:'책장' },
+  { key:'cushion',     img:'assets/cushion/방석.png',      alt:'방석' },
+  { key:'toy',         img:null,                          alt:'장난감' }, // 상태에 따라 TOY_IMG에서 선택
+  { key:'dog',         img:'assets/dog/강아지1.png',       alt:'강아지' },
 ];
 
-const CURTAIN_IMG = {
-  closed: 'assets/curtain/2_ 커텐(닫힘).png',
-  open:   'assets/curtain/2. 커텐(열림).png',
-};
-let curtainOpen = false;
+// 강아지를 클릭하면 이 "책상" 화면으로 전환됩니다. frame/clock/book은 홈 화면과
+// 같은 좌표를 그대로 씁니다(같은 벽에 걸린 같은 소품이라 위치가 동일).
+const DESK_LAYERS = [
+  { key:'background', img:'assets/background/배경.png', alt:'방 배경' },
+  { key:'window2',     img:'assets/windows/창문2.png',    alt:'창문' },
+  { key:'frame',       img:null,                          alt:'액자' }, // currentFramePhoto()에서 선택 (홈과 공유)
+  { key:'clock',       img:'assets/clock/시계.png',       alt:'시계' }, // 홈과 같은 좌표
+  { key:'book',        img:'assets/book/책장.png',        alt:'책장' }, // 홈과 같은 좌표
+  { key:'deskdog',     img:'assets/dog/강아지2.png',       alt:'책상에 앉은 강아지' },
+  { key:'deskplant',   img:'assets/plant/화분1.png',      alt:'화분' }, // 책상보다 앞에 오도록 강아지(책상 포함) 뒤에 배치
+  { key:'desktoy',     img:'assets/toy/장난감.png',        alt:'장난감' }, // 홈 화면의 toy와 별개 좌표
+  { key:'hand',        img:'assets/hand/손.png',          alt:'연필 쥔 손' },
+  { key:'cup',         img:'assets/cup/컵.png',           alt:'컵' },
+];
 
-function updateClockOverlay(){
-  const el = document.getElementById('sceneClock');
-  if(!el) return;
-  const now = new Date();
-  let h = now.getHours();
-  const ampm = h >= 12 ? '오후' : '오전';
-  h = h % 12; if(h === 0) h = 12;
-  const m = String(now.getMinutes()).padStart(2,'0');
-  el.innerHTML = `<span class="clock-ampm">${ampm}</span><span class="clock-time">${h}:${m}</span>`;
+let dogAtDesk = false;
+function toggleDogPose(){
+  dogAtDesk = !dogAtDesk;
+  renderHome();
+}
+
+// 장난감을 클릭하면 책장 빈 칸으로 자리를 옮깁니다 (뒷모습 그림이 생기면 TOY_IMG.shelf에 채워 넣어 확장 가능).
+const TOY_IMG = {
+  default: 'assets/toy/장난감.png',
+  shelf: 'assets/toy/장난감.png',
+};
+let toyOnShelf = false;
+function toggleToyPlacement(){
+  toyOnShelf = !toyOnShelf;
+  renderHome();
+}
+
+// ---------------- 배치 편집 모드 (?layout=edit) ----------------
+// 자동/수동 좌표 추정이 잘 안 맞을 때, 참고 이미지를 반투명하게 겹쳐두고
+// 소품을 마우스로 직접 끌어서 위치를 맞추기 위한 도구입니다.
+// URL에 ?layout=edit 을 붙이면 켜지고, 드래그한 좌표는 바로 화면(모든 모드)에 반영 + localStorage에 저장됩니다.
+const layoutEditMode = new URLSearchParams(location.search).get('layout') === 'edit';
+let layoutOverrides = {};
+try{ layoutOverrides = JSON.parse(localStorage.getItem('layoutOverrides') || '{}'); }catch(e){}
+
+function setupLayoutEditor(){
+  const card = document.querySelector('.scene-card');
+  if(!card) return;
+
+  // 히트스팟(책장/액자/창문/강아지 클릭 영역)이 위에 겹쳐 있어서 드래그를 가로채므로 끔
+  document.querySelectorAll('.scene-hotspot').forEach(h => { h.style.pointerEvents = 'none'; });
+
+  if(!document.getElementById('layoutRefOverlay')){
+    const img = document.createElement('img');
+    img.id = 'layoutRefOverlay';
+    img.src = dogAtDesk ? 'assets/1_첫화면 복사본.png' : 'assets/0_ 소품자리 설정 시필요_.png';
+    img.style.cssText = 'position:absolute; inset:0; width:100%; height:100%; opacity:0.45; pointer-events:none; z-index:50;';
+    card.appendChild(img);
+  }
+
+  let panel = document.getElementById('layoutPanel');
+  if(!panel){
+    panel = document.createElement('div');
+    panel.id = 'layoutPanel';
+    panel.style.cssText = 'position:fixed; top:8px; right:8px; background:rgba(0,0,0,0.85); color:#7be0b0; font:11px/1.5 monospace; padding:10px; z-index:9999; max-width:280px; white-space:pre-wrap; max-height:70vh; overflow:auto; border-radius:8px;';
+    document.body.appendChild(panel);
+    const resetBtn = document.createElement('button');
+    resetBtn.textContent = '초기화 (전부 원래대로)';
+    resetBtn.style.cssText = 'position:fixed; top:8px; right:296px; z-index:9999; padding:6px 10px; border-radius:6px; border:none; cursor:pointer;';
+    resetBtn.onclick = () => {
+      layoutOverrides = {};
+      localStorage.removeItem('layoutOverrides');
+      renderHome();
+    };
+    document.body.appendChild(resetBtn);
+
+    const copyBtn = document.createElement('button');
+    copyBtn.textContent = '📋 복사하기 (다 맞춘 후)';
+    copyBtn.style.cssText = 'position:fixed; top:44px; right:296px; z-index:9999; padding:6px 10px; border-radius:6px; border:none; cursor:pointer; background:#ffcf5c;';
+    copyBtn.onclick = async () => {
+      const TEXT_LAYER_SELECTORS = { bigClock: '.scene-big-clock', stopwatchBtn: '.scene-stopwatch-btn' };
+      const lines = Object.entries(layoutOverrides).map(([key, ov]) => {
+        if(TEXT_LAYER_SELECTORS[key]){
+          const props = ['left','top']
+            .filter(k => ov[k] !== undefined)
+            .map(k => `${k}:${ov[k]}%;`)
+            .join(' ');
+          const fontSize = ov.fontSize !== undefined ? ` font-size:${ov.fontSize}cqw;` : '';
+          return `${TEXT_LAYER_SELECTORS[key]}{ ${props}${fontSize} }`;
+        }
+        const props = ['left','top','width','height']
+          .filter(k => ov[k] !== undefined)
+          .map(k => `${k}:${ov[k]}%;`)
+          .join(' ');
+        return `.layer-${key}{ ${props} }`;
+      });
+      const text = lines.length ? lines.join('\n') : '(변경된 게 없어요)';
+      try{
+        await navigator.clipboard.writeText(text);
+        copyBtn.textContent = '✅ 복사됨!';
+      }catch(e){
+        copyBtn.textContent = '복사 실패 (아래 확인)';
+        alert(text);
+      }
+      setTimeout(() => { copyBtn.textContent = '📋 복사하기 (다 맞춘 후)'; }, 1500);
+    };
+    document.body.appendChild(copyBtn);
+
+    const sceneBtn = document.createElement('button');
+    sceneBtn.textContent = '🐶 홈/책상 전환';
+    sceneBtn.style.cssText = 'position:fixed; top:80px; right:296px; z-index:9999; padding:6px 10px; border-radius:6px; border:none; cursor:pointer;';
+    sceneBtn.onclick = () => { toggleDogPose(); };
+    document.body.appendChild(sceneBtn);
+  }
+
+  function updatePanel(){
+    let text = '드래그: 이동 / 노란 점: 크기 조절\n(참고 이미지 45% 겹쳐 보임)\n\n';
+    document.querySelectorAll('.scene-layer[data-layer-key], .scene-text-layer[data-text-key]').forEach(el => {
+      const key = el.dataset.layerKey || el.dataset.textKey;
+      const ov = layoutOverrides[key];
+      if(!ov){ text += `${key}: (기본값)\n`; return; }
+      const parts = ['left','top','width','height','fontSize']
+        .filter(k => ov[k] !== undefined)
+        .map(k => `${k}:${ov[k]}${k==='fontSize'?'cqw':'%'}`)
+        .join(' ');
+      text += `${key}: ${parts}\n`;
+    });
+    panel.textContent = text;
+  }
+
+  function saveOverride(key, patch){
+    const cur = layoutOverrides[key] || {};
+    layoutOverrides[key] = { ...cur, ...patch };
+    localStorage.setItem('layoutOverrides', JSON.stringify(layoutOverrides));
+    updatePanel();
+  }
+
+  function positionHandle(handle, el){
+    const cardRect = card.getBoundingClientRect();
+    const rect = el.getBoundingClientRect();
+    handle.style.left = (rect.right - cardRect.left) + 'px';
+    handle.style.top = (rect.bottom - cardRect.top) + 'px';
+  }
+
+  let dragEl = null, startX, startY, startLeftPx, startTopPx;
+  let resizeEl = null, rStartX, rStartY, rStartWidthPx, rStartHeightPx, rHandle;
+
+  document.querySelectorAll('.scene-layer[data-layer-key]').forEach(el => {
+    el.style.pointerEvents = 'auto';
+    el.style.cursor = 'move';
+
+    el.onpointerdown = (e) => {
+      e.preventDefault();
+      dragEl = el;
+      const cardRect = card.getBoundingClientRect();
+      startX = e.clientX; startY = e.clientY;
+      const rect = el.getBoundingClientRect();
+      startLeftPx = rect.left - cardRect.left;
+      startTopPx = rect.top - cardRect.top;
+      el.setPointerCapture(e.pointerId);
+    };
+    el.onpointermove = (e) => {
+      if(dragEl !== el) return;
+      const cardRect = card.getBoundingClientRect();
+      const dx = e.clientX - startX;
+      const dy = e.clientY - startY;
+      const newLeftPct = (startLeftPx + dx) / cardRect.width * 100;
+      const newTopPct = (startTopPx + dy) / cardRect.height * 100;
+      el.style.left = newLeftPct.toFixed(2) + '%';
+      el.style.top = newTopPct.toFixed(2) + '%';
+      saveOverride(el.dataset.layerKey, { left: +newLeftPct.toFixed(2), top: +newTopPct.toFixed(2) });
+      if(el._resizeHandle) positionHandle(el._resizeHandle, el);
+    };
+    el.onpointerup = () => { dragEl = null; };
+
+    // 크기 조절 핸들 (요소 우하단 모서리, 노란 점)
+    const handle = document.createElement('div');
+    handle.className = 'layout-resize-handle';
+    handle.style.cssText = 'position:absolute; width:12px; height:12px; margin-left:-6px; margin-top:-6px; background:#ffcf5c; border:2px solid #171a2e; border-radius:50%; cursor:nwse-resize; z-index:60; pointer-events:auto;';
+    card.appendChild(handle);
+    el._resizeHandle = handle;
+    positionHandle(handle, el);
+
+    handle.onpointerdown = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      resizeEl = el;
+      rHandle = handle;
+      const rect = el.getBoundingClientRect();
+      rStartX = e.clientX; rStartY = e.clientY;
+      rStartWidthPx = rect.width;
+      rStartHeightPx = rect.height;
+      handle.setPointerCapture(e.pointerId);
+    };
+    handle.onpointermove = (e) => {
+      if(resizeEl !== el) return;
+      const cardRect = card.getBoundingClientRect();
+      const dx = e.clientX - rStartX;
+      const dy = e.clientY - rStartY;
+      const newWidthPct = Math.max(1, rStartWidthPx + dx) / cardRect.width * 100;
+      const newHeightPct = Math.max(1, rStartHeightPx + dy) / cardRect.height * 100;
+      el.style.width = newWidthPct.toFixed(2) + '%';
+      el.style.height = newHeightPct.toFixed(2) + '%';
+      saveOverride(el.dataset.layerKey, { width: +newWidthPct.toFixed(2), height: +newHeightPct.toFixed(2) });
+      positionHandle(handle, el);
+    };
+    handle.onpointerup = () => { resizeEl = null; };
+  });
+
+  // 텍스트 요소(시:분:초 표시, 재생/정지 버튼): left는 가운데 정렬 기준이라
+  // 이미지 레이어와 달리 요소의 중심 x좌표를 기준으로 이동을 계산함
+  let dragTextEl = null, tStartX, tStartY, tStartCenterXPx, tStartTopPx;
+  let resizeTextEl = null, rtStartX, rtStartFontSizeCqw;
+
+  document.querySelectorAll('.scene-text-layer[data-text-key]').forEach(el => {
+    el.style.pointerEvents = 'auto';
+    el.style.cursor = 'move';
+
+    el.onpointerdown = (e) => {
+      e.preventDefault();
+      dragTextEl = el;
+      const cardRect = card.getBoundingClientRect();
+      const rect = el.getBoundingClientRect();
+      tStartX = e.clientX; tStartY = e.clientY;
+      tStartCenterXPx = rect.left + rect.width / 2 - cardRect.left;
+      tStartTopPx = rect.top - cardRect.top;
+      el.setPointerCapture(e.pointerId);
+    };
+    el.onpointermove = (e) => {
+      if(dragTextEl !== el) return;
+      const cardRect = card.getBoundingClientRect();
+      const dx = e.clientX - tStartX;
+      const dy = e.clientY - tStartY;
+      const newLeftPct = (tStartCenterXPx + dx) / cardRect.width * 100;
+      const newTopPct = (tStartTopPx + dy) / cardRect.height * 100;
+      el.style.left = newLeftPct.toFixed(2) + '%';
+      el.style.top = newTopPct.toFixed(2) + '%';
+      saveOverride(el.dataset.textKey, { left: +newLeftPct.toFixed(2), top: +newTopPct.toFixed(2) });
+      if(el._resizeHandle) positionHandle(el._resizeHandle, el);
+    };
+    el.onpointerup = () => { dragTextEl = null; };
+
+    // 크기 조절 핸들: 글자 크기(font-size)를 cqw 단위로 조절 (좌우로 드래그)
+    const handle = document.createElement('div');
+    handle.className = 'layout-resize-handle';
+    handle.style.cssText = 'position:absolute; width:12px; height:12px; margin-left:-6px; margin-top:-6px; background:#5cc8ff; border:2px solid #171a2e; border-radius:50%; cursor:ew-resize; z-index:60; pointer-events:auto;';
+    card.appendChild(handle);
+    el._resizeHandle = handle;
+    positionHandle(handle, el);
+
+    handle.onpointerdown = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      resizeTextEl = el;
+      rtStartX = e.clientX;
+      const cardRect = card.getBoundingClientRect();
+      const ov = layoutOverrides[el.dataset.textKey];
+      rtStartFontSizeCqw = ov && ov.fontSize !== undefined
+        ? ov.fontSize
+        : parseFloat(getComputedStyle(el).fontSize) / cardRect.width * 100;
+      handle.setPointerCapture(e.pointerId);
+    };
+    handle.onpointermove = (e) => {
+      if(resizeTextEl !== el) return;
+      const cardRect = card.getBoundingClientRect();
+      const dx = e.clientX - rtStartX;
+      const newFontSizeCqw = Math.max(0.5, rtStartFontSizeCqw + dx / cardRect.width * 100);
+      el.style.fontSize = newFontSizeCqw.toFixed(2) + 'cqw';
+      saveOverride(el.dataset.textKey, { fontSize: +newFontSizeCqw.toFixed(2) });
+      positionHandle(handle, el);
+    };
+    handle.onpointerup = () => { resizeTextEl = null; };
+  });
+
+  updatePanel();
+}
+
+function updateSceneStopwatch(){
+  const el = document.getElementById('sceneBigClock');
+  if(el) el.textContent = timerFormatHMS(timer.basicElapsed);
+  const btn = document.getElementById('sceneStopwatchBtn');
+  if(btn) btn.textContent = timer.running ? '⏸ 정지' : '▶ 재생';
 }
 
 function renderHome(){
   const today = todayKey();
 
+  const activeLayers = dogAtDesk ? DESK_LAYERS : ROOM_LAYERS;
+
   document.getElementById('mainView').innerHTML = `
     <div class="scene-card">
-      ${ROOM_LAYERS.map(l => {
-        const src = l.key === 'curtain' ? CURTAIN_IMG[curtainOpen ? 'open' : 'closed'] : l.img;
-        const id = l.key === 'curtain' ? ' id="sceneCurtain"' : '';
-        return `<img src="${src}" class="scene-layer layer-${l.key}"${id} alt="${l.alt}">`;
+      ${activeLayers.map(l => {
+        let src = l.img;
+        let id = '';
+        let extraClass = '';
+        if(l.key === 'frame'){ src = currentFramePhoto(); }
+        if(l.key === 'toy'){
+          src = TOY_IMG[toyOnShelf ? 'shelf' : 'default'];
+          id = ' id="sceneToy"';
+          extraClass = toyOnShelf ? ' toy-on-shelf' : '';
+        }
+        if(l.key === 'hand' && timer.running){
+          extraClass = ' writing';
+        }
+        const ov = layoutOverrides[l.key];
+        const ovStyle = ov
+          ? ` style="${ov.left!==undefined?`left:${ov.left}%;`:''}${ov.top!==undefined?`top:${ov.top}%;`:''}${ov.width!==undefined?`width:${ov.width}%;`:''}${ov.height!==undefined?`height:${ov.height}%;`:''}"`
+          : '';
+        return `<img src="${src}" class="scene-layer layer-${l.key}${extraClass}"${id} data-layer-key="${l.key}"${ovStyle} alt="${l.alt}">`;
       }).join('')}
-      <div class="scene-hotspot hotspot-bookshelf" id="hotspotBookshelf" title="통계 보기"></div>
+      ${dogAtDesk ? `
+        <div class="scene-hotspot hotspot-window2" id="hotspotWindow" title="배경음 재생/정지"></div>
+        <div class="scene-hotspot hotspot-deskdog" id="hotspotDog" title="강아지 (홈으로)"></div>
+      ` : `
+        <div class="scene-hotspot hotspot-window" id="hotspotWindow" title="배경음 재생/정지"></div>
+        <div class="scene-hotspot hotspot-dog" id="hotspotDog" title="강아지"></div>
+      `}
+      <div class="scene-hotspot hotspot-bookshelf" id="hotspotBookshelf" title="할일·통계·사진첩·식물도감"></div>
       <div class="scene-hotspot hotspot-frame" id="hotspotFrame" title="액자 보기"></div>
-      <div class="scene-clock" id="sceneClock"></div>
-      <div class="scene-timer-overlay" id="timerDisplay">
-        <div class="timer-num">${timer.mode==='pomodoro' ? timerFormat(timer.remaining) : timerFormat(timer.basicElapsed)}</div>
-        <div class="timer-cap" id="timerSub">${timer.mode==='pomodoro' ? (timer.phase==='work' ? '집중' : '휴식') : '경과'}</div>
-      </div>
+      ${dogAtDesk ? (() => {
+        const clockOv = layoutOverrides['bigClock'];
+        const clockStyle = clockOv
+          ? ` style="${clockOv.left!==undefined?`left:${clockOv.left}%;`:''}${clockOv.top!==undefined?`top:${clockOv.top}%;`:''}${clockOv.fontSize!==undefined?`font-size:${clockOv.fontSize}cqw;`:''}"`
+          : '';
+        const btnOv = layoutOverrides['stopwatchBtn'];
+        const btnStyle = btnOv
+          ? ` style="${btnOv.left!==undefined?`left:${btnOv.left}%;`:''}${btnOv.top!==undefined?`top:${btnOv.top}%;`:''}${btnOv.fontSize!==undefined?`font-size:${btnOv.fontSize}cqw;`:''}"`
+          : '';
+        return `
+        <div class="scene-big-clock scene-text-layer" id="sceneBigClock" data-text-key="bigClock"${clockStyle}></div>
+        <button class="scene-stopwatch-btn scene-text-layer" id="sceneStopwatchBtn" data-text-key="stopwatchBtn"${btnStyle}>${timer.running ? '⏸ 정지' : '▶ 재생'}</button>`;
+      })() : ''}
     </div>
 
     <div class="card home-controls">
@@ -498,12 +766,11 @@ function renderHome(){
         <div class="muted" style="margin-top:10px;">오늘 뽀모도로 ${data.pomodoroCount}회 · 오늘 공부 ${data.studyLog[today]||0}분</div>
       </div>
       <div class="home-controls-col noise-col">
-        <div class="section-title" style="margin-bottom:8px;">🎧 백색소음</div>
+        <div class="section-title" style="margin-bottom:8px;">🎧 배경음</div>
         <div class="noise-row" style="margin-top:0; padding-top:0; border-top:none;">
           <button class="btn btn-ghost btn-sm" id="btnNoiseToggle">${noise.playing ? '⏸ 소리끄기' : '▶ 재생'}</button>
           <select class="noise-select" id="noiseType">
-            <option value="rain" ${noise.type==='rain'?'selected':''}>🌧️ 빗소리</option>
-            <option value="white" ${noise.type==='white'?'selected':''}>📻 화이트노이즈</option>
+            ${Object.entries(NOISE_SOURCES).map(([key, s]) => `<option value="${key}" ${noise.type===key?'selected':''}>${s.label}</option>`).join('')}
           </select>
           <input type="range" id="noiseVolume" min="0" max="1" step="0.05" value="${noise.volume}">
         </div>
@@ -511,11 +778,20 @@ function renderHome(){
     </div>
   `;
 
-  updateClockOverlay();
+  updateSceneStopwatch();
+  if(layoutEditMode) setupLayoutEditor();
 
-  document.getElementById('sceneCurtain').onclick = () => { curtainOpen = !curtainOpen; renderHome(); };
-  document.getElementById('hotspotBookshelf').onclick = openStatsModal;
+  document.getElementById('hotspotBookshelf').onclick = openBookshelfModal;
   document.getElementById('hotspotFrame').onclick = openFrameModal;
+  document.getElementById('hotspotWindow').onclick = toggleNoise;
+  document.getElementById('hotspotDog').onclick = toggleDogPose;
+  const sceneToyEl = document.getElementById('sceneToy');
+  if(sceneToyEl) sceneToyEl.onclick = toggleToyPlacement;
+  const sceneStopwatchBtn = document.getElementById('sceneStopwatchBtn');
+  if(sceneStopwatchBtn) sceneStopwatchBtn.onclick = () => {
+    if(timer.running) pauseTimer(); else startTimer();
+    renderHome();
+  };
 
   document.getElementById('modePomodoro').onclick = () => switchTimerMode('pomodoro');
   document.getElementById('modeBasic').onclick = () => switchTimerMode('basic');
@@ -881,19 +1157,78 @@ function renderStats(){
   document.getElementById('mainView').innerHTML = statsContentHtml();
 }
 
-function openStatsModal(){
-  document.getElementById('statsModalBody').innerHTML = statsContentHtml();
-  document.getElementById('statsModal').classList.add('show');
+/* ---------------- 책장 팝업 (오늘의 할일 / 통계 / 사진첩 / 식물도감) ---------------- */
+function todoTabHtml(){
+  const today = todayKey();
+  const due = getTodosDueOn(today);
+  const rate = getCompletionRate(today);
+  return `
+    ${rate ? `
+    <div class="progress-wrap">
+      <div class="progress-top"><span>${rate.done} / ${rate.total} 완료</span><span>${rate.rate}%</span></div>
+      <div class="progress-track"><div class="progress-fill" style="width:${rate.rate}%"></div></div>
+    </div>` : `<div class="empty-state">오늘은 할일이 없어요</div>`}
+    <div class="todo-list" style="margin-top:12px;">
+      ${due.map(t => {
+        const isDone = !!t.completions[today]?.done;
+        return `
+        <div class="todo-item">
+          <div class="todo-check ${isDone?'done':''}" data-modal-todo-id="${t.id}">${isDone?'✓':''}</div>
+          <div style="flex:1;">
+            <div class="todo-text">${escapeHtml(t.text)}</div>
+          </div>
+        </div>`;
+      }).join('')}
+    </div>
+  `;
 }
-function closeStatsModal(){
-  document.getElementById('statsModal').classList.remove('show');
+function albumTabHtml(){
+  return `
+    <div class="photo-album-grid">
+      ${FRAME_PHOTOS.map(src => `<div class="photo-album-item"><img src="${src}" alt="액자 사진"></div>`).join('')}
+    </div>
+  `;
 }
+function plantsTabHtml(){
+  return `<div class="empty-state">🌱 공부 기록에 따라 식물이 자라는 성장 시스템을 준비 중이에요.<br>조금만 기다려주세요!</div>`;
+}
+function bookshelfTabContentHtml(tab){
+  if(tab === 'todo') return todoTabHtml();
+  if(tab === 'stats') return statsContentHtml();
+  if(tab === 'album') return albumTabHtml();
+  if(tab === 'plants') return plantsTabHtml();
+  return '';
+}
+
+let bookshelfActiveTab = 'todo';
+
+function renderBookshelfModalBody(){
+  document.getElementById('bookshelfModalBody').innerHTML = bookshelfTabContentHtml(bookshelfActiveTab);
+  document.querySelectorAll('.modal-tab-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.bookshelfTab === bookshelfActiveTab);
+  });
+  if(bookshelfActiveTab === 'todo'){
+    document.querySelectorAll('[data-modal-todo-id]').forEach(el => {
+      el.onclick = () => toggleTodoCompleteInModal(el.dataset.modalTodoId);
+    });
+  }
+}
+
+function openBookshelfModal(){
+  document.getElementById('bookshelfModal').classList.add('show');
+  renderBookshelfModalBody();
+}
+function closeBookshelfModal(){
+  document.getElementById('bookshelfModal').classList.remove('show');
+}
+
+const FRAME_MODAL_SIZE_RATIO = 0.72; // 화면에서 액자 사진이 차지하는 최대 비율 (가로세로 비율은 유지)
 
 function sizeFrameModalImg(){
   const img = document.getElementById('frameModalImg');
   if(!img.naturalWidth) return;
-  const maxW = window.innerWidth * 0.5;
-  const maxH = window.innerHeight * 0.5;
+  const maxW = window.innerWidth * FRAME_MODAL_SIZE_RATIO;
+  const maxH = window.innerHeight * FRAME_MODAL_SIZE_RATIO;
   const ratio = img.naturalWidth / img.naturalHeight;
   let w = maxW, h = maxW / ratio;
   if(h > maxH){ h = maxH; w = maxH * ratio; }
@@ -904,12 +1239,24 @@ function sizeFrameModalImg(){
 function openFrameModal(){
   const img = document.getElementById('frameModalImg');
   img.onload = sizeFrameModalImg;
-  img.src = FRAME_IMG;
+  img.src = currentFramePhoto();
   if(img.complete && img.naturalWidth) sizeFrameModalImg();
   document.getElementById('frameModal').classList.add('show');
 }
 function closeFrameModal(){
   document.getElementById('frameModal').classList.remove('show');
+}
+function cycleFramePhoto(){
+  if(FRAME_PHOTOS.length < 2){
+    showToast('아직 액자 사진이 한 장뿐이에요 🖼️');
+    return;
+  }
+  framePhotoIndex = (framePhotoIndex + 1) % FRAME_PHOTOS.length;
+  const img = document.getElementById('frameModalImg');
+  img.onload = sizeFrameModalImg;
+  img.src = currentFramePhoto();
+  const sceneFrame = document.querySelector('.layer-frame');
+  if(sceneFrame) sceneFrame.src = currentFramePhoto();
 }
 
 function escapeHtml(str){
@@ -957,14 +1304,16 @@ function init(){
   setInterval(checkScheduleAlarms, 15000);
   checkScheduleAlarms();
 
-  setInterval(updateClockOverlay, 15000);
-
-  document.getElementById('statsModalClose').onclick = closeStatsModal;
-  document.getElementById('statsModal').addEventListener('click', (e) => {
-    if(e.target.id === 'statsModal') closeStatsModal();
+  document.getElementById('bookshelfModalClose').onclick = closeBookshelfModal;
+  document.getElementById('bookshelfModal').addEventListener('click', (e) => {
+    if(e.target.id === 'bookshelfModal') closeBookshelfModal();
+  });
+  document.querySelectorAll('.modal-tab-btn').forEach(btn => {
+    btn.onclick = () => { bookshelfActiveTab = btn.dataset.bookshelfTab; renderBookshelfModalBody(); };
   });
 
   document.getElementById('frameModalClose').onclick = closeFrameModal;
+  document.getElementById('frameModalChangeBtn').onclick = cycleFramePhoto;
   document.getElementById('frameModal').addEventListener('click', (e) => {
     if(e.target.id === 'frameModal') closeFrameModal();
   });

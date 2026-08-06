@@ -23,6 +23,12 @@
   --font-mono: 'JetBrains Mono', monospace;
 }
 
+@font-face{
+  font-family: 'KyoboHandwriting';
+  src: url('assets/font/KyoboHandwriting2025lyb.ttf') format('truetype');
+  font-display: swap;
+}
+
 *{ box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 
 html,body{
@@ -61,7 +67,7 @@ body{
   max-width:900px; margin:0 auto;
   min-height:100vh;
   display:flex; flex-direction:column;
-  padding-bottom: 78px;
+  padding-bottom: 16px; /* 탭바를 숨겨서 더 이상 큰 여백이 필요 없음 */
 }
 
 /* 세로 모드일 땐 회전 안내만 보여주고 앱은 숨김 */
@@ -86,14 +92,16 @@ body{
 
 /* 상단바 */
 .topbar{
-  display:flex; align-items:center; justify-content:space-between;
+  display:none; /* 폰 화면엔 흰 그림(캐릭터)만 보이도록 숨김 */
+  align-items:center; justify-content:space-between;
   padding: 16px 18px 10px;
 }
 .brand{ display:flex; align-items:center; gap:8px; }
 .brand-ghost{ font-size:22px; filter: drop-shadow(0 0 6px rgba(242,238,255,0.5)); }
 .brand-text{ font-family: var(--font-display); font-size:20px; font-weight:700; letter-spacing:0.3px; }
 .coin-badge{
-  display:flex; align-items:center; gap:6px;
+  display:none; /* 폰 화면엔 흰 그림(캐릭터)만 보이도록 숨김 */
+  align-items:center; gap:6px;
   background: var(--card-2);
   border:1px solid var(--line);
   padding:6px 12px; border-radius:999px;
@@ -134,69 +142,132 @@ body{
   overflow:hidden;
   border: 4px solid #2c3562;
   background:#fff;
+  container-type: inline-size;
 }
 .scene-layer{
   position:absolute;
   display:block;
   pointer-events:none;
 }
-/* 레이어 위치는 assets/0_ 소품자리 설정 시필요.png 배치를 기준으로 산출한 좌표(%) */
+/* 레이어 위치·크기는 assets/0_ 소품자리 설정 시필요_.png 배치 기준.
+   사용자가 ?layout=edit 편집 모드에서 직접 드래그/크기조절해 맞춘 최종 좌표값 */
 .layer-background{
   inset:0; width:100%; height:100%;
   object-fit: cover;
 }
 .layer-window{
-  left:3%; top:16.5%; width:20%; height:58%;
+  left:2.9%; top:2.17%; width:37.99%; height:77.7%;
+  object-fit: contain; object-position: top left;
+}
+.layer-plant{
+  left:16.67%; top:43.85%; width:9.6%; height:13.03%;
   object-fit: contain; object-position: top left;
 }
 .layer-frame{
-  left:83.9%; top:13.9%; width:11.5%; height:26.9%;
+  left:31.29%; top:14.66%; width:17.29%; height:29.98%;
   object-fit: contain; object-position: top left;
 }
-.layer-curtain{
-  left:1.8%; top:13.9%; width:22.4%; height:53.7%;
+.layer-clock{
+  left:85.18%; top:5.69%; width:11.64%; height:23.11%;
+  object-fit: contain; object-position: top left;
+}
+.layer-book{
+  left:83.53%; top:28.92%; width:16.85%; height:40.35%;
+  object-fit: contain; object-position: top left;
+}
+.layer-cushion{
+  left:41.51%; top:66.06%; width:34.98%; height:27.64%;
+  object-fit: contain; object-position: top left;
+}
+.layer-toy{
+  left:29.79%; top:77.17%; width:9.75%; height:15.95%;
   object-fit: contain; object-position: top left;
   pointer-events: auto;
   cursor: pointer;
 }
-.layer-cushion{
-  left:43%; top:60%; width:40%; height:32%;
-  object-fit: contain; object-position: bottom left;
-}
-.layer-toy{
-  left:28.4%; top:73.6%; width:7.8%; height:14.8%;
-  object-fit: contain; object-position: bottom left;
+.layer-toy.toy-on-shelf{
+  /* 책장 아래 빈 칸 안에 원래 크기 그대로, 칸 바닥에 놓인 것처럼 배치 */
+  left:87.89%; top:54.54%;
 }
 .layer-dog{
-  left:43.2%; top:33.8%; width:35.9%; height:54.6%;
-  object-fit: contain; object-position: bottom left;
+  left:41.63%; top:50.7%; width:37.06%; height:38.46%;
+  object-fit: contain; object-position: top left;
 }
-.scene-clock{
-  position:absolute;
-  left:63%; top:8%;
-  width:13%; aspect-ratio:1;
-  transform:translate(-50%,-50%);
-  border-radius:50%;
-  display:flex; flex-direction:column; align-items:center; justify-content:center;
-  font-family: var(--font-mono); color:#171a2e;
-  line-height:1.05;
-}
-.scene-clock .clock-time{ font-size: clamp(11px, 2.1vw, 20px); font-weight:700; }
-.scene-clock .clock-ampm{ font-size: clamp(7px, 1vw, 11px); opacity:0.75; }
 
-.scene-timer-overlay{
-  position:absolute;
-  left:37%; top:8%;
-  transform:translate(-50%,-50%);
-  text-align:center;
-  font-family: var(--font-mono); color:#171a2e;
-  line-height:1.05;
+/* 강아지 클릭 → 책상 화면 (사용자가 ?layout=edit 에서 드래그/크기조절해 맞춘 좌표값) */
+.layer-window2{
+  left:2.79%; top:2.36%; width:27.14%; height:77.68%;
+  object-fit: contain; object-position: top left;
 }
-.scene-timer-overlay .timer-num{ font-size: clamp(13px, 2.6vw, 26px); font-weight:700; }
-.scene-timer-overlay .timer-cap{ font-size: clamp(7px, 1vw, 11px); opacity:0.75; }
+.layer-deskplant{
+  left:35.05%; top:68.45%; width:7.44%; height:13.19%;
+  object-fit: contain; object-position: top left;
+}
+.layer-desktoy{
+  left:87.41%; top:56.1%; width:5.44%; height:10.36%;
+  object-fit: contain; object-position: top left;
+}
+.layer-deskdog{
+  left:29.36%; top:40.97%; width:56.15%; height:88.4%;
+  object-fit: contain; object-position: top left;
+}
+.layer-hand{
+  left:49.96%; top:66.34%; width:6.62%; height:16.16%;
+  object-fit: contain; object-position: top left;
+}
+@keyframes hand-write{
+  0%{ transform: rotate(-5deg); }
+  100%{ transform: rotate(5deg); }
+}
+.layer-hand.writing{
+  transform-origin: 50% 10%;
+  animation: hand-write 0.7s ease-in-out infinite alternate;
+}
+.layer-cup{
+  left:67.52%; top:68.26%; width:8.68%; height:12.58%;
+  object-fit: contain; object-position: top left;
+}
+.hotspot-window2{
+  left:2.79%; top:2.36%; width:27.14%; height:77.68%;
+}
+.hotspot-deskdog{
+  left:29.36%; top:40.97%; width:56.15%; height:88.4%;
+}
+
+/* 큰 시:분:초 시계 (흰 장면 안, 위쪽 중앙) */
+.scene-big-clock{
+  position:absolute;
+  left:65.54%; top:7.35%;
+  transform: translateX(-50%);
+  text-align:center;
+  font-family: 'KyoboHandwriting', var(--font-mono);
+  font-size: clamp(36px, 9vw, 64px);
+  font-weight:700;
+  color:#171a2e;
+  letter-spacing:1px;
+  pointer-events:none;
+}
+.scene-stopwatch-btn{
+  position:absolute;
+  left:65.2%; top:18.64%;
+  transform: translateX(-50%);
+  font-family: 'KyoboHandwriting', var(--font-mono);
+  font-size: clamp(15px, 3.2vw, 22px);
+  font-weight:700;
+  color:#171a2e;
+  background: transparent;
+  border: none;
+  border-radius: 999px;
+  padding: 0.35em 1.3em;
+  letter-spacing:0.5px;
+  cursor:pointer;
+  pointer-events:auto;
+}
+.scene-stopwatch-btn:active{ transform: translateX(-50%) scale(0.95); }
 
 .home-controls{
-  display:flex; gap:16px; flex-wrap:wrap; align-items:flex-start;
+  display:none; /* 폰 화면엔 흰 그림(캐릭터)만 보이도록 숨김 */
+  gap:16px; flex-wrap:wrap; align-items:flex-start;
 }
 .home-controls-col{ flex:1; min-width:220px; }
 .home-controls-col.noise-col{ border-left:1px solid var(--line); padding-left:16px; }
@@ -463,7 +534,7 @@ body{
 .cal-legend{ display:flex; gap:14px; justify-content:center; margin-top:10px; font-size:11px; color:var(--muted); }
 .cal-legend i{ margin-right:4px; }
 
-/* ---------- 백색소음 ---------- */
+/* ---------- 배경음 ---------- */
 .noise-row{
   display:flex; align-items:center; gap:8px; margin-top:14px;
   padding-top:14px; border-top:1px solid var(--line);
@@ -476,9 +547,9 @@ body{
 
 
 .tabbar{
+  display:none; /* 폰 화면엔 흰 그림(캐릭터)만 보이도록 숨김 */
   position:fixed; bottom:0; left:0; right:0; z-index:2;
   max-width:900px; margin:0 auto;
-  display:flex;
   background: rgba(23,27,52,0.92);
   backdrop-filter: blur(10px);
   border-top:1px solid var(--line);
@@ -513,10 +584,18 @@ body{
   cursor:pointer;
 }
 .hotspot-bookshelf{
-  left:27%; top:46%; width:18%; height:17.5%;
+  /* 책장 아래 칸은 장난감 놓는 자리라 겹치지 않게 위쪽 책 칸까지만 */
+  left:83.53%; top:28.92%; width:16.85%; height:22%;
 }
 .hotspot-frame{
-  left:83.9%; top:13.9%; width:11.5%; height:26.9%;
+  left:31.29%; top:14.66%; width:17.29%; height:29.98%;
+}
+.hotspot-window{
+  /* 이제 커튼이 없어서 창문 전체가 클릭 영역 */
+  left:2.9%; top:2.17%; width:37.99%; height:77.7%;
+}
+.hotspot-dog{
+  left:41.63%; top:50.7%; width:37.06%; height:38.46%;
 }
 
 .modal-overlay{
@@ -546,11 +625,27 @@ body{
   background: var(--card-3); border:1px solid var(--line); color: var(--text);
   width:32px; height:32px; border-radius:50%;
   font-size:15px; cursor:pointer;
+  flex-shrink:0;
 }
 .modal-body{
   flex:1; overflow-y:auto;
   padding:16px 18px;
 }
+
+.modal-tabs{
+  display:flex; gap:6px;
+  overflow-x:auto;
+  scrollbar-width:none;
+}
+.modal-tabs::-webkit-scrollbar{ display:none; }
+.modal-tab-btn{
+  flex-shrink:0;
+  background:none; border:1px solid transparent; color: var(--muted);
+  padding:8px 12px; border-radius:12px;
+  font-family: var(--font-body); font-size:13px; white-space:nowrap;
+  cursor:pointer;
+}
+.modal-tab-btn.active{ background: var(--card-3); color: var(--lamp); border-color: var(--line); font-weight:700; }
 
 .frame-modal-panel{
   position:relative;
@@ -563,6 +658,23 @@ body{
 .frame-modal-close{
   position:absolute; top:-14px; right:-14px;
 }
+.modal-change-photo{
+  position:absolute; bottom:-14px; left:50%; transform:translateX(-50%);
+  background: var(--card-3); border:1px solid var(--line); color: var(--text);
+  width:38px; height:38px; border-radius:50%;
+  font-size:16px; cursor:pointer;
+}
+
+.photo-album-grid{
+  display:grid; grid-template-columns: repeat(auto-fill, minmax(110px,1fr));
+  gap:10px;
+}
+.photo-album-item{
+  border-radius:12px; overflow:hidden; border:1px solid var(--line);
+  background: var(--card-3);
+  aspect-ratio:1; display:flex; align-items:center; justify-content:center;
+}
+.photo-album-item img{ width:100%; height:100%; object-fit:contain; }
 
 @media (max-width:360px){
   .timer-display{ font-size:46px; }
