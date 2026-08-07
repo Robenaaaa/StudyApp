@@ -124,10 +124,6 @@ function setTodoCompletion(id, dateKey){
 function toggleTodoComplete(id, dateKey){
   if(setTodoCompletion(id, dateKey)) renderTodo();
 }
-function toggleTodoCompleteInModal(id){
-  if(setTodoCompletion(id, todayKey())) renderBookshelfModalBody();
-}
-
 function deleteTodo(id){
   data.todos = data.todos.filter(t => t.id !== id);
   saveData();
@@ -308,6 +304,20 @@ function toggleNoise(){
   }
   renderHome();
 }
+// 창문 클릭 전용: 전체 renderHome() 대신 이미지 src만 바꿔서
+// 씬 전체가 다시 그려지며 생기는 미세한 위치 흔들림(리플로우)을 없앰
+function toggleDeskWindow(){
+  if(noise.playing){
+    stopNoiseNodes();
+    noise.playing = false;
+  } else {
+    startNoise();
+  }
+  const winEl = document.querySelector('[data-layer-key="window2"]');
+  if(winEl) winEl.src = noise.playing ? 'assets/windows/창문2.png' : 'assets/windows/창문1.png';
+  const noiseBtn = document.getElementById('btnNoiseToggle');
+  if(noiseBtn) noiseBtn.textContent = noise.playing ? '⏸ 소리끄기' : '▶ 재생';
+}
 function setNoiseType(type){
   noise.type = type;
   data.noiseSettings.type = type;
@@ -377,7 +387,7 @@ function fireAlarm(subject, time){
   showToast(`🔔 ${time} — "${subject}" 시간이에요!`);
   if('Notification' in window && Notification.permission === 'granted'){
     try{
-      new Notification('유령집사의 공부방', { body: `${time} — ${subject} 시간이에요!` });
+      new Notification('모모의 하루', { body: `${time} — ${subject} 시간이에요!` });
     }catch(e){}
   }
   if(navigator.vibrate) navigator.vibrate([200,100,200]);
@@ -424,7 +434,7 @@ const ROOM_LAYERS = [
 // 같은 좌표를 그대로 씁니다(같은 벽에 걸린 같은 소품이라 위치가 동일).
 const DESK_LAYERS = [
   { key:'background', img:'assets/background/배경.png', alt:'방 배경' },
-  { key:'window2',     img:'assets/windows/창문2.png',    alt:'창문' },
+  { key:'window2',     img:null,                          alt:'창문' }, // 클릭(배경음 토글) 상태에 따라 창문1↔창문2
   { key:'frame',       img:null,                          alt:'액자' }, // currentFramePhoto()에서 선택 (홈과 공유)
   { key:'clock',       img:'assets/clock/시계.png',       alt:'시계' }, // 홈과 같은 좌표
   { key:'book',        img:'assets/book/책장.png',        alt:'책장' }, // 홈과 같은 좌표
@@ -711,6 +721,7 @@ function renderHome(){
         let id = '';
         let extraClass = '';
         if(l.key === 'frame'){ src = currentFramePhoto(); }
+        if(l.key === 'window2'){ src = noise.playing ? 'assets/windows/창문2.png' : 'assets/windows/창문1.png'; }
         if(l.key === 'toy'){
           src = TOY_IMG[toyOnShelf ? 'shelf' : 'default'];
           id = ' id="sceneToy"';
@@ -728,12 +739,11 @@ function renderHome(){
       ${dogAtDesk ? `
         <div class="scene-hotspot hotspot-window2" id="hotspotWindow" title="배경음 재생/정지"></div>
         <div class="scene-hotspot hotspot-deskdog" id="hotspotDog" title="강아지 (홈으로)"></div>
+        <div class="scene-hotspot hotspot-bookshelf" id="hotspotBookshelf" title="할일·통계·사진첩·식물도감"></div>
+        <div class="scene-hotspot hotspot-frame" id="hotspotFrame" title="액자 보기"></div>
       ` : `
-        <div class="scene-hotspot hotspot-window" id="hotspotWindow" title="배경음 재생/정지"></div>
         <div class="scene-hotspot hotspot-dog" id="hotspotDog" title="강아지"></div>
       `}
-      <div class="scene-hotspot hotspot-bookshelf" id="hotspotBookshelf" title="할일·통계·사진첩·식물도감"></div>
-      <div class="scene-hotspot hotspot-frame" id="hotspotFrame" title="액자 보기"></div>
       ${dogAtDesk ? (() => {
         const clockOv = layoutOverrides['bigClock'];
         const clockStyle = clockOv
@@ -781,9 +791,12 @@ function renderHome(){
   updateSceneStopwatch();
   if(layoutEditMode) setupLayoutEditor();
 
-  document.getElementById('hotspotBookshelf').onclick = openBookshelfModal;
-  document.getElementById('hotspotFrame').onclick = openFrameModal;
-  document.getElementById('hotspotWindow').onclick = toggleNoise;
+  const hotspotBookshelf = document.getElementById('hotspotBookshelf');
+  if(hotspotBookshelf) hotspotBookshelf.onclick = openBookshelfModal;
+  const hotspotFrame = document.getElementById('hotspotFrame');
+  if(hotspotFrame) hotspotFrame.onclick = openFrameModal;
+  const hotspotWindow = document.getElementById('hotspotWindow');
+  if(hotspotWindow) hotspotWindow.onclick = toggleDeskWindow;
   document.getElementById('hotspotDog').onclick = toggleDogPose;
   const sceneToyEl = document.getElementById('sceneToy');
   if(sceneToyEl) sceneToyEl.onclick = toggleToyPlacement;
@@ -1157,66 +1170,23 @@ function renderStats(){
   document.getElementById('mainView').innerHTML = statsContentHtml();
 }
 
-/* ---------------- 책장 팝업 (오늘의 할일 / 통계 / 사진첩 / 식물도감) ---------------- */
-function todoTabHtml(){
-  const today = todayKey();
-  const due = getTodosDueOn(today);
-  const rate = getCompletionRate(today);
-  return `
-    ${rate ? `
-    <div class="progress-wrap">
-      <div class="progress-top"><span>${rate.done} / ${rate.total} 완료</span><span>${rate.rate}%</span></div>
-      <div class="progress-track"><div class="progress-fill" style="width:${rate.rate}%"></div></div>
-    </div>` : `<div class="empty-state">오늘은 할일이 없어요</div>`}
-    <div class="todo-list" style="margin-top:12px;">
-      ${due.map(t => {
-        const isDone = !!t.completions[today]?.done;
-        return `
-        <div class="todo-item">
-          <div class="todo-check ${isDone?'done':''}" data-modal-todo-id="${t.id}">${isDone?'✓':''}</div>
-          <div style="flex:1;">
-            <div class="todo-text">${escapeHtml(t.text)}</div>
-          </div>
-        </div>`;
-      }).join('')}
-    </div>
-  `;
-}
-function albumTabHtml(){
-  return `
-    <div class="photo-album-grid">
-      ${FRAME_PHOTOS.map(src => `<div class="photo-album-item"><img src="${src}" alt="액자 사진"></div>`).join('')}
-    </div>
-  `;
-}
-function plantsTabHtml(){
-  return `<div class="empty-state">🌱 공부 기록에 따라 식물이 자라는 성장 시스템을 준비 중이에요.<br>조금만 기다려주세요!</div>`;
-}
-function bookshelfTabContentHtml(tab){
-  if(tab === 'todo') return todoTabHtml();
-  if(tab === 'stats') return statsContentHtml();
-  if(tab === 'album') return albumTabHtml();
-  if(tab === 'plants') return plantsTabHtml();
-  return '';
-}
+/* ---------------- 책장 팝업 (assets/menu/ 이미지를 그대로 표시, 탭 클릭 시 이미지 전환) ---------------- */
+const BOOKSHELF_MENU_IMAGES = {
+  todo: 'assets/menu/할일.png',
+  album: 'assets/menu/사진첩.png',
+  plants: 'assets/menu/식물도감.png',
+  stats: 'assets/menu/통계.png',
+};
 
 let bookshelfActiveTab = 'todo';
 
-function renderBookshelfModalBody(){
-  document.getElementById('bookshelfModalBody').innerHTML = bookshelfTabContentHtml(bookshelfActiveTab);
-  document.querySelectorAll('.modal-tab-btn').forEach(btn => {
-    btn.classList.toggle('active', btn.dataset.bookshelfTab === bookshelfActiveTab);
-  });
-  if(bookshelfActiveTab === 'todo'){
-    document.querySelectorAll('[data-modal-todo-id]').forEach(el => {
-      el.onclick = () => toggleTodoCompleteInModal(el.dataset.modalTodoId);
-    });
-  }
+function renderBookshelfModalImg(){
+  document.getElementById('bookshelfModalImg').src = BOOKSHELF_MENU_IMAGES[bookshelfActiveTab];
 }
 
 function openBookshelfModal(){
   document.getElementById('bookshelfModal').classList.add('show');
-  renderBookshelfModalBody();
+  renderBookshelfModalImg();
 }
 function closeBookshelfModal(){
   document.getElementById('bookshelfModal').classList.remove('show');
@@ -1308,8 +1278,8 @@ function init(){
   document.getElementById('bookshelfModal').addEventListener('click', (e) => {
     if(e.target.id === 'bookshelfModal') closeBookshelfModal();
   });
-  document.querySelectorAll('.modal-tab-btn').forEach(btn => {
-    btn.onclick = () => { bookshelfActiveTab = btn.dataset.bookshelfTab; renderBookshelfModalBody(); };
+  document.querySelectorAll('.bookshelf-tab-hotspot').forEach(el => {
+    el.onclick = () => { bookshelfActiveTab = el.dataset.bookshelfTab; renderBookshelfModalImg(); };
   });
 
   document.getElementById('frameModalClose').onclick = closeFrameModal;

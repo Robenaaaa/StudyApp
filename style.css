@@ -156,7 +156,7 @@ body{
   object-fit: cover;
 }
 .layer-window{
-  left:2.9%; top:2.17%; width:37.99%; height:77.7%;
+  left:2.93%; top:2.33%; width:37.99%; height:77.7%;
   object-fit: contain; object-position: top left;
 }
 .layer-plant{
@@ -196,7 +196,7 @@ body{
 
 /* 강아지 클릭 → 책상 화면 (사용자가 ?layout=edit 에서 드래그/크기조절해 맞춘 좌표값) */
 .layer-window2{
-  left:2.79%; top:2.36%; width:27.14%; height:77.68%;
+  left:2.94%; top:2.37%; width:27.14%; height:77.68%;
   object-fit: contain; object-position: top left;
 }
 .layer-deskplant{
@@ -228,7 +228,7 @@ body{
   object-fit: contain; object-position: top left;
 }
 .hotspot-window2{
-  left:2.79%; top:2.36%; width:27.14%; height:77.68%;
+  left:2.94%; top:2.37%; width:27.14%; height:77.68%;
 }
 .hotspot-deskdog{
   left:29.36%; top:40.97%; width:56.15%; height:88.4%;
@@ -592,7 +592,7 @@ body{
 }
 .hotspot-window{
   /* 이제 커튼이 없어서 창문 전체가 클릭 영역 */
-  left:2.9%; top:2.17%; width:37.99%; height:77.7%;
+  left:2.93%; top:2.33%; width:37.99%; height:77.7%;
 }
 .hotspot-dog{
   left:41.63%; top:50.7%; width:37.06%; height:38.46%;
@@ -606,46 +606,39 @@ body{
   padding:20px;
 }
 .modal-overlay.show{ display:flex; }
-.modal-panel{
-  width:80vw; height:80vh;
-  background: linear-gradient(180deg, var(--card), var(--card-2));
-  border:1px solid var(--line);
-  border-radius: var(--radius);
-  box-shadow: 0 20px 60px rgba(0,0,0,0.5);
-  display:flex; flex-direction:column;
-  overflow:hidden;
-}
-.modal-header{
-  display:flex; align-items:center; justify-content:space-between;
-  padding:16px 18px;
-  border-bottom:1px solid var(--line);
-  flex-shrink:0;
-}
 .modal-close{
   background: var(--card-3); border:1px solid var(--line); color: var(--text);
   width:32px; height:32px; border-radius:50%;
   font-size:15px; cursor:pointer;
   flex-shrink:0;
 }
-.modal-body{
-  flex:1; overflow-y:auto;
-  padding:16px 18px;
-}
 
-.modal-tabs{
-  display:flex; gap:6px;
-  overflow-x:auto;
-  scrollbar-width:none;
+/* 책장 팝업: assets/menu/ 이미지를 그대로 표시, 이미지 속 탭·닫기 버튼 위치에 투명 히트스팟만 겹침 */
+.bookshelf-modal-panel{
+  position:relative;
+  width:min(90vw, 722px);
+  aspect-ratio: 722 / 451;
 }
-.modal-tabs::-webkit-scrollbar{ display:none; }
-.modal-tab-btn{
-  flex-shrink:0;
-  background:none; border:1px solid transparent; color: var(--muted);
-  padding:8px 12px; border-radius:12px;
-  font-family: var(--font-body); font-size:13px; white-space:nowrap;
+.bookshelf-modal-img{
+  display:block;
+  width:100%; height:100%;
+  border-radius: var(--radius);
+  box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+}
+.bookshelf-tab-hotspot{
+  position:absolute;
+  top:8.43%; height:8.87%;
   cursor:pointer;
 }
-.modal-tab-btn.active{ background: var(--card-3); color: var(--lamp); border-color: var(--line); font-weight:700; }
+.bookshelf-tab-hotspot[data-bookshelf-tab="todo"]{ left:4.43%; width:13.16%; }
+.bookshelf-tab-hotspot[data-bookshelf-tab="album"]{ left:19.39%; width:13.30%; }
+.bookshelf-tab-hotspot[data-bookshelf-tab="plants"]{ left:34.35%; width:13.30%; }
+.bookshelf-tab-hotspot[data-bookshelf-tab="stats"]{ left:49.45%; width:13.30%; }
+.bookshelf-close-hotspot{
+  position:absolute;
+  left:94.18%; top:0.44%; width:5.54%; height:8.87%;
+  cursor:pointer;
+}
 
 .frame-modal-panel{
   position:relative;
