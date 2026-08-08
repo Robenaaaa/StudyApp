@@ -25,7 +25,7 @@
 
 @font-face{
   font-family: 'KyoboHandwriting';
-  src: url('assets/font/KyoboHandwriting2025lyb.ttf') format('truetype');
+  src: url('assets/font/KyoboHandwriting2019.ttf') format('truetype');
   font-display: swap;
 }
 
@@ -600,7 +600,7 @@ body{
 
 .modal-overlay{
   display:none;
-  position:fixed; inset:0; z-index:100;
+  position:fixed; inset:0; z-index:10000;
   background: rgba(10,12,24,0.72);
   align-items:center; justify-content:center;
   padding:20px;
@@ -616,8 +616,10 @@ body{
 /* 책장 팝업: assets/menu/ 이미지를 그대로 표시, 이미지 속 탭·닫기 버튼 위치에 투명 히트스팟만 겹침 */
 .bookshelf-modal-panel{
   position:relative;
-  width:min(90vw, 722px);
+  width:80%;
+  max-width:722px;
   aspect-ratio: 722 / 451;
+  container-type: inline-size;
 }
 .bookshelf-modal-img{
   display:block;
@@ -629,6 +631,14 @@ body{
   position:absolute;
   top:8.43%; height:8.87%;
   cursor:pointer;
+  display:flex; align-items:center; justify-content:center;
+}
+.bookshelf-tab-label{
+  font-family: 'KyoboHandwriting', var(--font-body);
+  font-size: clamp(11px, 2.3cqw, 18px);
+  color:#171a2e;
+  pointer-events:none;
+  white-space:nowrap;
 }
 .bookshelf-tab-hotspot[data-bookshelf-tab="todo"]{ left:4.43%; width:13.16%; }
 .bookshelf-tab-hotspot[data-bookshelf-tab="album"]{ left:19.39%; width:13.30%; }
@@ -638,6 +648,65 @@ body{
   position:absolute;
   left:94.18%; top:0.44%; width:5.54%; height:8.87%;
   cursor:pointer;
+}
+
+/* 할일 탭: 달력 (이미지 속 화살표/그리드 자리에 실제 연-월 이동 + 요일/날짜를 겹침) */
+.bookshelf-calendar{ display:none; }
+.bookshelf-calendar.show{ display:block; }
+.bookshelf-cal-prev, .bookshelf-cal-next{
+  position:absolute;
+  top:28.38%; width:7%; height:8%;
+  transform:translate(-50%,-50%);
+  cursor:pointer;
+}
+.bookshelf-cal-prev{ left:18.14%; }
+.bookshelf-cal-next{ left:33.10%; }
+.bookshelf-cal-label{
+  position:absolute;
+  left:26.22%; top:24.99%;
+  transform:translate(-50%,-50%);
+  font-family: 'KyoboHandwriting', var(--font-body);
+  font-size: clamp(10px, 2.2cqw, 16px);
+  color:#171a2e;
+  white-space:nowrap;
+  pointer-events:none;
+}
+.bookshelf-cal-grid{
+  position:absolute;
+  left:5.28%; top:29.91%; width:45.01%; height:63.41%;
+}
+/* 요일(SUN~SAT)별 열 — 좌우 위치/너비를 각각 따로 조정 가능 */
+.bookshelf-cal-col{
+  position:absolute;
+  top:0; height:100%;
+}
+/* 행(헤더+6주) — 위아래 위치/높이를 각각 따로 조정 가능, 열 안에서 절대 위치로 배치 */
+.bookshelf-cal-cell{
+  position:absolute;
+  left:0; width:100%;
+  display:flex; align-items:center; justify-content:center;
+  font-family: 'KyoboHandwriting', var(--font-body);
+  font-size: clamp(8px, 1.7cqw, 13px);
+  color:#171a2e;
+}
+.bookshelf-cal-cell.header{ font-weight:700; }
+.bookshelf-cal-cell.sun{ color:#d64545; }
+/* 편집 모드: 행 드래그용 손잡이 (그리드 오른쪽 바깥에 위치) */
+.bookshelf-cal-row-handle{
+  position:absolute;
+  left:104%; width:4%;
+  background: rgba(92,200,255,0.55);
+  border:1px solid #171a2e;
+  border-radius:4px;
+  cursor:move;
+}
+.bookshelf-cal-row-resize{
+  position:absolute;
+  width:10px; height:10px;
+  margin-left:-5px; margin-top:-5px;
+  background:#ffcf5c; border:2px solid #171a2e; border-radius:50%;
+  cursor:ns-resize;
+  z-index:71;
 }
 
 .frame-modal-panel{

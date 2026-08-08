@@ -538,6 +538,13 @@ function setupLayoutEditor(){
     sceneBtn.style.cssText = 'position:fixed; top:80px; right:296px; z-index:9999; padding:6px 10px; border-radius:6px; border:none; cursor:pointer;';
     sceneBtn.onclick = () => { toggleDogPose(); };
     document.body.appendChild(sceneBtn);
+
+    // 편집 모드에선 hotspot-bookshelf도 pointer-events:none 처리돼서 못 누르므로 대신 열어주는 버튼
+    const bookshelfBtn = document.createElement('button');
+    bookshelfBtn.textContent = '📚 책장 팝업 열기';
+    bookshelfBtn.style.cssText = 'position:fixed; top:116px; right:296px; z-index:9999; padding:6px 10px; border-radius:6px; border:none; cursor:pointer;';
+    bookshelfBtn.onclick = () => { openBookshelfModal(); };
+    document.body.appendChild(bookshelfBtn);
   }
 
   function updatePanel(){
@@ -1182,14 +1189,387 @@ let bookshelfActiveTab = 'todo';
 
 function renderBookshelfModalImg(){
   document.getElementById('bookshelfModalImg').src = BOOKSHELF_MENU_IMAGES[bookshelfActiveTab];
+  renderBookshelfCalendar();
+}
+
+/* 할일 탭 달력: 실제 연-월 이동 + 요일/날짜 표시 (일요일 빨간색) */
+const CAL_WEEKDAY_LABELS = ['SUN','MON','TUE','WED','THU','FRI','SAT'];
+let bookshelfCalYear = new Date().getFullYear();
+let bookshelfCalMonth = new Date().getMonth(); // 0-11
+
+let bookshelfCalOverrides = {};
+try{ bookshelfCalOverrides = JSON.parse(localStorage.getItem('bookshelfCalOverrides') || '{}'); }catch(e){}
+
+// 요일 열(SUN~SAT) 기본 좌우 위치 — 사용자가 ?layout=edit 에서 맞춘 값, calCol0~calCol6 오버라이드로 추가 조정 가능
+const CAL_COL_LEFT_DEFAULTS = [2.46, 14.73, 27.23, 40.84, 53.34, 66.28, 79.23];
+
+// 행(0=요일 헤더, 1~6=주) 기본 위치/높이 — 사용자가 ?layout=edit 에서 맞춘 값, calRow0~calRow6 오버라이드로 추가 조정 가능
+const CAL_ROW_HEIGHT_DEFAULTS = [15.81, 18.09, 23.17, 29.52, 33.83, 39.7, 26.99];
+const CAL_ROW_TOP_DEFAULTS = { 3: 42.6 }; // 지정 안 된 행은 7등분 기본값(r*100/7) 사용
+function getCalRowRect(r){
+  const ov = bookshelfCalOverrides['calRow' + r] || {};
+  const defaultTop = CAL_ROW_TOP_DEFAULTS[r] !== undefined ? CAL_ROW_TOP_DEFAULTS[r] : r * (100 / 7);
+  const top = ov.top !== undefined ? ov.top : defaultTop;
+  const height = ov.height !== undefined ? ov.height : CAL_ROW_HEIGHT_DEFAULTS[r];
+  return { top, height };
+}
+
+function applyBookshelfCalOverrides(){
+  document.querySelectorAll('[data-cal-key]').forEach(el => {
+    const ov = bookshelfCalOverrides[el.dataset.calKey];
+    if(!ov) return;
+    if(ov.left !== undefined) el.style.left = ov.left + '%';
+    if(ov.top !== undefined) el.style.top = ov.top + '%';
+    if(ov.width !== undefined) el.style.width = ov.width + '%';
+    if(ov.height !== undefined) el.style.height = ov.height + '%';
+  });
+}
+
+function updateBookshelfCalEditPanel(){
+  const editPanel = document.getElementById('bookshelfCalEditPanel');
+  if(!editPanel) return;
+  let text = '달력 요소 드래그: 이동\n파란 점: 열 너비 / 노란 점: 행 높이 조절\n\n';
+  document.querySelectorAll('[data-cal-key]').forEach(el => {
+    const key = el.dataset.calKey;
+    const ov = bookshelfCalOverrides[key];
+    if(!ov){ text += `${key}: (기본값)\n`; return; }
+    const parts = ['left','top','width','height'].filter(k => ov[k] !== undefined).map(k => `${k}:${ov[k]}%`).join(' ');
+    text += `${key}: ${parts}\n`;
+  });
+  editPanel.textContent = text;
+}
+
+function saveCalOverride(key, patch){
+  const cur = bookshelfCalOverrides[key] || {};
+  bookshelfCalOverrides[key] = { ...cur, ...patch };
+  localStorage.setItem('bookshelfCalOverrides', JSON.stringify(bookshelfCalOverrides));
+  updateBookshelfCalEditPanel();
+}
+
+// 요일 열(SUN~SAT): 좌우 드래그로 이동, 파란 점 드래그로 너비 조절.
+// renderBookshelfCalendar()가 매번 열 DOM을 새로 만들기 때문에 렌더링마다 다시 호출해서 다시 묶어줌.
+function bindBookshelfCalColumnDrag(){
+  const gridEl = document.querySelector('[data-cal-key="calGrid"]');
+  if(!gridEl) return;
+
+  function positionColHandle(col){
+    const handle = col._resizeHandle;
+    if(!handle) return;
+    const gridRect = gridEl.getBoundingClientRect();
+    const rect = col.getBoundingClientRect();
+    handle.style.left = (rect.right - gridRect.left) + 'px';
+  }
+
+  document.querySelectorAll('.bookshelf-cal-col[data-cal-key]').forEach(col => {
+    const key = col.dataset.calKey;
+    col.style.cursor = 'move';
+    let startX, startLeftPx;
+    col.onpointerdown = (e) => {
+      e.preventDefault();
+      e.stopPropagation(); // gridEl에도 드래그 핸들러가 있어서 버블링되면 gridEl이 포인터 캡처를 가로챔
+      const gridRect = gridEl.getBoundingClientRect();
+      const rect = col.getBoundingClientRect();
+      startX = e.clientX;
+      startLeftPx = rect.left - gridRect.left;
+      col._dragging = true;
+      try{ col.setPointerCapture(e.pointerId); }catch(err){}
+    };
+    col.onpointermove = (e) => {
+      if(!col._dragging) return;
+      const gridRect = gridEl.getBoundingClientRect();
+      const newLeftPct = (startLeftPx + (e.clientX - startX)) / gridRect.width * 100;
+      col.style.left = newLeftPct.toFixed(2) + '%';
+      saveCalOverride(key, { left: +newLeftPct.toFixed(2) });
+      positionColHandle(col);
+    };
+    col.onpointerup = () => { col._dragging = false; };
+
+    const handle = document.createElement('div');
+    handle.className = 'bookshelf-cal-col-handle';
+    handle.style.cssText = 'position:absolute; top:50%; width:10px; height:10px; margin-top:-5px; margin-left:-5px; background:#5cc8ff; border:2px solid #171a2e; border-radius:50%; cursor:ew-resize; z-index:70;';
+    gridEl.appendChild(handle);
+    col._resizeHandle = handle;
+    positionColHandle(col);
+
+    let rStartX, rStartWidthPx;
+    handle.onpointerdown = (e) => {
+      e.preventDefault(); e.stopPropagation();
+      const rect = col.getBoundingClientRect();
+      rStartX = e.clientX;
+      rStartWidthPx = rect.width;
+      handle._resizing = true;
+      try{ handle.setPointerCapture(e.pointerId); }catch(err){}
+    };
+    handle.onpointermove = (e) => {
+      if(!handle._resizing) return;
+      const gridRect = gridEl.getBoundingClientRect();
+      const newWidthPct = Math.max(1, rStartWidthPx + (e.clientX - rStartX)) / gridRect.width * 100;
+      col.style.width = newWidthPct.toFixed(2) + '%';
+      saveCalOverride(key, { width: +newWidthPct.toFixed(2) });
+      positionColHandle(col);
+    };
+    handle.onpointerup = () => { handle._resizing = false; };
+  });
+}
+
+// 드래그 중 실제 달력 셀(7개 열의 해당 행)도 같이 움직이게 — renderBookshelfCalendar() 전체를 다시 부르면
+// 드래그 중인 손잡이 자체가 DOM에서 사라져 드래그가 끊기므로, 셀 스타일만 가볍게 직접 갱신함
+function updateBookshelfCalRowCells(r){
+  const rect = getCalRowRect(r);
+  document.querySelectorAll('.bookshelf-cal-col').forEach(col => {
+    const cell = col.children[r];
+    if(cell){ cell.style.top = rect.top + '%'; cell.style.height = rect.height + '%'; }
+  });
+}
+
+// 행(헤더+6주): 위아래 드래그로 이동, 노란 점 드래그로 높이 조절. 그리드 오른쪽 바깥의 손잡이로 조작.
+// 매 렌더링마다 셀이 새로 만들어지므로 손잡이도 매번 새로 만들어서 다시 묶어줌.
+function bindBookshelfCalRowDrag(){
+  const gridEl = document.querySelector('[data-cal-key="calGrid"]');
+  if(!gridEl) return;
+
+  for(let r = 0; r <= 6; r++){
+    const key = 'calRow' + r;
+    const rect = getCalRowRect(r);
+
+    const handle = document.createElement('div');
+    handle.className = 'bookshelf-cal-row-handle';
+    handle.dataset.calKey = key;
+    handle.style.top = rect.top + '%';
+    handle.style.height = rect.height + '%';
+    gridEl.appendChild(handle);
+
+    const dot = document.createElement('div');
+    dot.className = 'bookshelf-cal-row-resize';
+    gridEl.appendChild(dot);
+
+    function positionDot(){
+      const gridRect = gridEl.getBoundingClientRect();
+      const hRect = handle.getBoundingClientRect();
+      dot.style.left = (hRect.left + hRect.width / 2 - gridRect.left) + 'px';
+      dot.style.top = (hRect.bottom - gridRect.top) + 'px';
+    }
+    positionDot();
+
+    let startY, startTopPx;
+    handle.onpointerdown = (e) => {
+      e.preventDefault(); e.stopPropagation();
+      const gridRect = gridEl.getBoundingClientRect();
+      const hRect = handle.getBoundingClientRect();
+      startY = e.clientY;
+      startTopPx = hRect.top - gridRect.top;
+      handle._dragging = true;
+      try{ handle.setPointerCapture(e.pointerId); }catch(err){}
+    };
+    handle.onpointermove = (e) => {
+      if(!handle._dragging) return;
+      const gridRect = gridEl.getBoundingClientRect();
+      const newTopPct = (startTopPx + (e.clientY - startY)) / gridRect.height * 100;
+      handle.style.top = newTopPct.toFixed(2) + '%';
+      saveCalOverride(key, { top: +newTopPct.toFixed(2) });
+      updateBookshelfCalRowCells(r);
+      positionDot();
+    };
+    handle.onpointerup = () => { handle._dragging = false; };
+
+    let rStartY, rStartHeightPx;
+    dot.onpointerdown = (e) => {
+      e.preventDefault(); e.stopPropagation();
+      const hRect = handle.getBoundingClientRect();
+      rStartY = e.clientY;
+      rStartHeightPx = hRect.height;
+      dot._resizing = true;
+      try{ dot.setPointerCapture(e.pointerId); }catch(err){}
+    };
+    dot.onpointermove = (e) => {
+      if(!dot._resizing) return;
+      const gridRect = gridEl.getBoundingClientRect();
+      const newHeightPct = Math.max(1, rStartHeightPx + (e.clientY - rStartY)) / gridRect.height * 100;
+      handle.style.height = newHeightPct.toFixed(2) + '%';
+      saveCalOverride(key, { height: +newHeightPct.toFixed(2) });
+      updateBookshelfCalRowCells(r);
+      positionDot();
+    };
+    dot.onpointerup = () => { dot._resizing = false; };
+  }
+}
+
+function renderBookshelfCalendar(){
+  const show = bookshelfActiveTab === 'todo';
+  document.getElementById('bookshelfCalendar').classList.toggle('show', show);
+  if(!show) return;
+
+  document.getElementById('bookshelfCalLabel').textContent =
+    `${bookshelfCalYear}.${String(bookshelfCalMonth + 1).padStart(2, '0')}`;
+
+  const firstWeekday = new Date(bookshelfCalYear, bookshelfCalMonth, 1).getDay();
+  const daysInMonth = new Date(bookshelfCalYear, bookshelfCalMonth + 1, 0).getDate();
+
+  // 요일별(SUN~SAT) 열을 각각 독립된 블록으로 렌더링 — 좌우 위치/너비를 열마다 따로 조정할 수 있게
+  let html = '';
+  for(let c = 0; c < 7; c++){
+    const key = 'calCol' + c;
+    const ov = bookshelfCalOverrides[key] || {};
+    const left = ov.left !== undefined ? ov.left : CAL_COL_LEFT_DEFAULTS[c];
+    const width = ov.width !== undefined ? ov.width : (100 / 7);
+
+    const headerRect = getCalRowRect(0);
+    let cellsHtml = `<div class="bookshelf-cal-cell header${c === 0 ? ' sun' : ''}" style="top:${headerRect.top}%; height:${headerRect.height}%;">${CAL_WEEKDAY_LABELS[c]}</div>`;
+    for(let r = 1; r <= 6; r++){
+      const dayNum = (r - 1) * 7 + c - firstWeekday + 1;
+      const text = (dayNum >= 1 && dayNum <= daysInMonth) ? dayNum : '';
+      const rowRect = getCalRowRect(r);
+      cellsHtml += `<div class="bookshelf-cal-cell${c === 0 ? ' sun' : ''}" style="top:${rowRect.top}%; height:${rowRect.height}%;">${text}</div>`;
+    }
+    html += `<div class="bookshelf-cal-col" data-cal-key="${key}" style="left:${left}%; width:${width}%;">${cellsHtml}</div>`;
+  }
+  document.getElementById('bookshelfCalGrid').innerHTML = html;
+  applyBookshelfCalOverrides();
+  if(layoutEditMode) bindBookshelfCalRowDrag();
+  if(layoutEditMode) bindBookshelfCalColumnDrag();
+}
+
+function bookshelfCalPrevMonth(){
+  bookshelfCalMonth--;
+  if(bookshelfCalMonth < 0){ bookshelfCalMonth = 11; bookshelfCalYear--; }
+  renderBookshelfCalendar();
+}
+function bookshelfCalNextMonth(){
+  bookshelfCalMonth++;
+  if(bookshelfCalMonth > 11){ bookshelfCalMonth = 0; bookshelfCalYear++; }
+  renderBookshelfCalendar();
+}
+
+// 팝업을 브라우저 전체가 아니라 흰 장면(.scene-card = "폰 화면") 정중앙에 맞춤
+function positionBookshelfModal(){
+  const card = document.querySelector('.scene-card');
+  const modal = document.getElementById('bookshelfModal');
+  if(!card || !modal) return;
+  const r = card.getBoundingClientRect();
+  modal.style.left = r.left + 'px';
+  modal.style.top = r.top + 'px';
+  modal.style.right = 'auto';
+  modal.style.bottom = 'auto';
+  modal.style.width = r.width + 'px';
+  modal.style.height = r.height + 'px';
 }
 
 function openBookshelfModal(){
+  positionBookshelfModal();
   document.getElementById('bookshelfModal').classList.add('show');
   renderBookshelfModalImg();
+  window.addEventListener('resize', positionBookshelfModal);
+  if(layoutEditMode) setupBookshelfCalEditor();
+}
+
+/* ?layout=edit 모드: 할일 탭 달력 요소(화살표/라벨/그리드) 위치를 드래그로 조정 */
+function setupBookshelfCalEditor(){
+  const panel = document.querySelector('.bookshelf-modal-panel');
+  if(!panel) return;
+
+  let editPanel = document.getElementById('bookshelfCalEditPanel');
+  if(!editPanel){
+    editPanel = document.createElement('div');
+    editPanel.id = 'bookshelfCalEditPanel';
+    editPanel.style.cssText = 'position:fixed; top:8px; left:8px; background:rgba(0,0,0,0.85); color:#7be0b0; font:11px/1.5 monospace; padding:10px; z-index:10001; max-width:260px; white-space:pre-wrap; border-radius:8px; pointer-events:none;'; // 정보 표시용일 뿐이라 클릭이 그대로 통과해서 아래 달력 열을 드래그할 수 있어야 함
+    document.body.appendChild(editPanel);
+
+    const resetBtn = document.createElement('button');
+    resetBtn.textContent = '달력 초기화';
+    resetBtn.style.cssText = 'position:fixed; top:8px; left:276px; z-index:10001; padding:6px 10px; border-radius:6px; border:none; cursor:pointer;';
+    resetBtn.onclick = () => {
+      bookshelfCalOverrides = {};
+      localStorage.removeItem('bookshelfCalOverrides');
+      renderBookshelfCalendar();
+      updateBookshelfCalEditPanel();
+    };
+    document.body.appendChild(resetBtn);
+
+    const copyBtn = document.createElement('button');
+    copyBtn.textContent = '📋 달력 좌표 복사';
+    copyBtn.style.cssText = 'position:fixed; top:44px; left:276px; z-index:10001; padding:6px 10px; border-radius:6px; border:none; cursor:pointer; background:#ffcf5c;';
+    copyBtn.onclick = async () => {
+      const SEL = { calPrev:'.bookshelf-cal-prev', calNext:'.bookshelf-cal-next', calLabel:'.bookshelf-cal-label', calGrid:'.bookshelf-cal-grid' };
+      const lines = Object.entries(bookshelfCalOverrides).map(([key, ov]) => {
+        const props = ['left','top','width','height'].filter(k => ov[k] !== undefined).map(k => `${k}:${ov[k]}%;`).join(' ');
+        const sel = SEL[key] || `[data-cal-key="${key}"]`; // calCol0~calCol6 (요일 열)
+        return `${sel}{ ${props} }`;
+      });
+      const text = lines.length ? lines.join('\n') : '(변경된 게 없어요)';
+      try{
+        await navigator.clipboard.writeText(text);
+        copyBtn.textContent = '✅ 복사됨!';
+      }catch(e){
+        copyBtn.textContent = '복사 실패 (아래 확인)';
+        alert(text);
+      }
+      setTimeout(() => { copyBtn.textContent = '📋 달력 좌표 복사'; }, 1500);
+    };
+    document.body.appendChild(copyBtn);
+  }
+
+  // 화살표/라벨: transform:translate(-50%,-50%)로 가운데 정렬되므로 중심점 기준으로 드래그
+  ['calPrev', 'calNext', 'calLabel'].forEach(key => {
+    const el = document.querySelector(`[data-cal-key="${key}"]`);
+    if(!el) return;
+    el.onclick = null; // 편집 모드에서는 클릭해도 월 이동 안 되게
+    el.style.pointerEvents = 'auto';
+    el.style.cursor = 'move';
+    let startX, startY, startCenterXPct, startCenterYPct;
+    el.onpointerdown = (e) => {
+      e.preventDefault();
+      const panelRect = panel.getBoundingClientRect();
+      const rect = el.getBoundingClientRect();
+      startX = e.clientX; startY = e.clientY;
+      startCenterXPct = (rect.left + rect.width / 2 - panelRect.left) / panelRect.width * 100;
+      startCenterYPct = (rect.top + rect.height / 2 - panelRect.top) / panelRect.height * 100;
+      el._dragging = true;
+      try{ el.setPointerCapture(e.pointerId); }catch(err){}
+    };
+    el.onpointermove = (e) => {
+      if(!el._dragging) return;
+      const panelRect = panel.getBoundingClientRect();
+      const newLeftPct = startCenterXPct + (e.clientX - startX) / panelRect.width * 100;
+      const newTopPct = startCenterYPct + (e.clientY - startY) / panelRect.height * 100;
+      el.style.left = newLeftPct.toFixed(2) + '%';
+      el.style.top = newTopPct.toFixed(2) + '%';
+      saveCalOverride(key, { left: +newLeftPct.toFixed(2), top: +newTopPct.toFixed(2) });
+    };
+    el.onpointerup = () => { el._dragging = false; };
+  });
+
+  // 그리드: 왼쪽 위 모서리 기준 드래그
+  const gridEl = document.querySelector('[data-cal-key="calGrid"]');
+  if(gridEl){
+    gridEl.style.cursor = 'move';
+    let startX, startY, startLeftPx, startTopPx;
+    gridEl.onpointerdown = (e) => {
+      e.preventDefault();
+      const panelRect = panel.getBoundingClientRect();
+      const rect = gridEl.getBoundingClientRect();
+      startX = e.clientX; startY = e.clientY;
+      startLeftPx = rect.left - panelRect.left;
+      startTopPx = rect.top - panelRect.top;
+      gridEl._dragging = true;
+      try{ gridEl.setPointerCapture(e.pointerId); }catch(err){}
+    };
+    gridEl.onpointermove = (e) => {
+      if(!gridEl._dragging) return;
+      const panelRect = panel.getBoundingClientRect();
+      const newLeftPct = (startLeftPx + (e.clientX - startX)) / panelRect.width * 100;
+      const newTopPct = (startTopPx + (e.clientY - startY)) / panelRect.height * 100;
+      gridEl.style.left = newLeftPct.toFixed(2) + '%';
+      gridEl.style.top = newTopPct.toFixed(2) + '%';
+      saveCalOverride('calGrid', { left: +newLeftPct.toFixed(2), top: +newTopPct.toFixed(2) });
+    };
+    gridEl.onpointerup = () => { gridEl._dragging = false; };
+  }
+
+  updateBookshelfCalEditPanel();
 }
 function closeBookshelfModal(){
   document.getElementById('bookshelfModal').classList.remove('show');
+  window.removeEventListener('resize', positionBookshelfModal);
 }
 
 const FRAME_MODAL_SIZE_RATIO = 0.72; // 화면에서 액자 사진이 차지하는 최대 비율 (가로세로 비율은 유지)
@@ -1281,6 +1661,8 @@ function init(){
   document.querySelectorAll('.bookshelf-tab-hotspot').forEach(el => {
     el.onclick = () => { bookshelfActiveTab = el.dataset.bookshelfTab; renderBookshelfModalImg(); };
   });
+  document.getElementById('bookshelfCalPrev').onclick = bookshelfCalPrevMonth;
+  document.getElementById('bookshelfCalNext').onclick = bookshelfCalNextMonth;
 
   document.getElementById('frameModalClose').onclick = closeFrameModal;
   document.getElementById('frameModalChangeBtn').onclick = cycleFramePhoto;

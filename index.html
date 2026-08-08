@@ -55,11 +55,17 @@
 <div class="modal-overlay" id="bookshelfModal">
   <div class="bookshelf-modal-panel">
     <img id="bookshelfModalImg" class="bookshelf-modal-img" src="" alt="책장 메뉴">
-    <div class="bookshelf-tab-hotspot" data-bookshelf-tab="todo" title="오늘의 할일"></div>
-    <div class="bookshelf-tab-hotspot" data-bookshelf-tab="album" title="사진첩"></div>
-    <div class="bookshelf-tab-hotspot" data-bookshelf-tab="plants" title="식물도감"></div>
-    <div class="bookshelf-tab-hotspot" data-bookshelf-tab="stats" title="통계"></div>
+    <div class="bookshelf-tab-hotspot" data-bookshelf-tab="todo" title="할일"><span class="bookshelf-tab-label">할일</span></div>
+    <div class="bookshelf-tab-hotspot" data-bookshelf-tab="album" title="사진첩"><span class="bookshelf-tab-label">사진첩</span></div>
+    <div class="bookshelf-tab-hotspot" data-bookshelf-tab="plants" title="식물도감"><span class="bookshelf-tab-label">식물도감</span></div>
+    <div class="bookshelf-tab-hotspot" data-bookshelf-tab="stats" title="통계"><span class="bookshelf-tab-label">통계</span></div>
     <div class="bookshelf-close-hotspot" id="bookshelfModalClose" title="닫기"></div>
+    <div class="bookshelf-calendar" id="bookshelfCalendar">
+      <div class="bookshelf-cal-prev" id="bookshelfCalPrev" data-cal-key="calPrev" title="이전 달"></div>
+      <span class="bookshelf-cal-label" id="bookshelfCalLabel" data-cal-key="calLabel"></span>
+      <div class="bookshelf-cal-next" id="bookshelfCalNext" data-cal-key="calNext" title="다음 달"></div>
+      <div class="bookshelf-cal-grid" id="bookshelfCalGrid" data-cal-key="calGrid"></div>
+    </div>
   </div>
 </div>
 
